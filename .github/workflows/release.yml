@@ -16,13 +16,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs: check-version
+    env:
+      CARGO_REGISTRY_TOKEN: "${{ secrets.CARGO_REGISTRY_TOKEN }}"
     steps:
       - uses: actions/checkout@v3
       - name: Publish derive crate
-        run: |
-          cd ssz_derive
-          cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+        run: cargo publish -p ethereum_ssz_derive
       - name: Publish main crate
-        run: |
-          cd ssz
-          cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+        run: cargo publish -p ethereum_ssz
