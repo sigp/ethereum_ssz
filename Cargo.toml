@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "ssz",
+    "ssz_derive",
+]

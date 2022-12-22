@@ -1,0 +1,20 @@
+[package]
+name = "ethereum_ssz_derive"
+version = "1.0.0-beta.0"
+edition = "2021"
+description = "Procedural derive macros to accompany the ethereum_ssz crate"
+license = "Apache-2.0"
+repository = "https://github.com/sigp/ethereum_ssz_derive"
+documentation = "https://docs.rs/ethereum_ssz_derive"
+keywords = ["ethereum"]
+categories = ["cryptography::cryptocurrencies"]
+
+[lib]
+name = "ssz_derive"
+proc-macro = true
+
+[dependencies]
+syn = "1.0.42"
+proc-macro2 = "1.0.23"
+quote = "1.0.7"
+darling = "0.13.0"

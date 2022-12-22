@@ -1,0 +1,24 @@
+[package]
+name = "ethereum_ssz"
+version = "1.0.0-beta.0"
+edition = "2021"
+description = "SimpleSerialize (SSZ) as used in Ethereum"
+license = "Apache-2.0"
+repository = "https://github.com/sigp/ethereum_ssz"
+documentation = "https://docs.rs/ethereum_ssz"
+keywords = ["ethereum"]
+categories = ["cryptography::cryptocurrencies"]
+
+[lib]
+name = "ssz"
+
+[dev-dependencies]
+ethereum_ssz_derive = { version = "1.0.0-beta.0", path = "../ssz_derive" }
+
+[dependencies]
+ethereum-types = "0.12.1"
+smallvec = { version = "1.6.1", features = ["const_generics"] }
+itertools = "0.10.3"
+
+[features]
+arbitrary = ["ethereum-types/arbitrary"]
