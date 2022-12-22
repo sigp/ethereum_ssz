@@ -4,6 +4,7 @@ version = "1.0.0-beta.0"
 edition = "2021"
 description = "SimpleSerialize (SSZ) as used in Ethereum"
 license = "Apache-2.0"
+readme = "../README.md"
 repository = "https://github.com/sigp/ethereum_ssz"
 documentation = "https://docs.rs/ethereum_ssz"
 keywords = ["ethereum"]
