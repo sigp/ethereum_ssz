@@ -17,7 +17,7 @@ name = "ssz"
 ethereum_ssz_derive = { version = "1.0.0-beta.2", path = "../ssz_derive" }
 
 [dependencies]
-ethereum-types = "0.12.1"
+ethereum-types = "0.14.1"
 smallvec = { version = "1.6.1", features = ["const_generics"] }
 itertools = "0.10.3"
 
