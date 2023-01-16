@@ -17,8 +17,12 @@ to=$2
 grep "^version = \"$from\"" "$crate_name/Cargo.toml" > /dev/null || (echo "Wrong version: $from" && exit 1)
 
 # update package versions
-sed -i "" -e "s/^version = \"$from\"/version = \"$to\"/" "$crate_name/Cargo.toml"
-sed -i "" -e "s/^version = \"$from\"/version = \"$to\"/" "${crate_name}_derive/Cargo.toml"
+# these sed incantations are portable across BSD and GNU sed
+sed -i.bak -e "s/^version = \"$from\"/version = \"$to\"/" "$crate_name/Cargo.toml"
+sed -i.bak -e "s/^version = \"$from\"/version = \"$to\"/" "${crate_name}_derive/Cargo.toml"
 
 # update main crate's dev dependency on derive crate (if any)
-sed -i "" -e "s/\(${crate_name}_derive.*version\) = \"$from\"/\1 = \"$to\"/" "$crate_name/Cargo.toml"
+sed -i.bak -e "s/\(${crate_name}_derive.*version\) = \"$from\"/\1 = \"$to\"/" "$crate_name/Cargo.toml"
+
+rm "$crate_name/Cargo.toml.bak"
+rm "${crate_name}_derive/Cargo.toml.bak"
