@@ -1,6 +1,6 @@
 [package]
 name = "ethereum_ssz"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 description = "SimpleSerialize (SSZ) as used in Ethereum"
 license = "Apache-2.0"
@@ -14,7 +14,7 @@ categories = ["cryptography::cryptocurrencies"]
 name = "ssz"
 
 [dev-dependencies]
-ethereum_ssz_derive = { version = "0.5.0", path = "../ssz_derive" }
+ethereum_ssz_derive = { version = "0.5.1", path = "../ssz_derive" }
 
 [dependencies]
 ethereum-types = "0.14.1"
