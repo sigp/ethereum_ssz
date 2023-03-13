@@ -21,4 +21,4 @@ quote = "1.0.7"
 darling = "0.13.0"
 
 [dev-dependencies]
-ethereum_ssz = { version = "0.5.2", path = "../ssz" }
+ethereum_ssz = { path = "../ssz" }
