@@ -1,6 +1,6 @@
 [package]
 name = "ethereum_ssz_derive"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "Procedural derive macros to accompany the ethereum_ssz crate"
 license = "Apache-2.0"
@@ -21,4 +21,4 @@ quote = "1.0.7"
 darling = "0.13.0"
 
 [dev-dependencies]
-ethereum_ssz = { version = "0.5.1", path = "../ssz" }
+ethereum_ssz = { version = "0.5.2", path = "../ssz" }

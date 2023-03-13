@@ -24,5 +24,8 @@ sed -i.bak -e "s/^version = \"$from\"/version = \"$to\"/" "${crate_name}_derive/
 # update main crate's dev dependency on derive crate (if any)
 sed -i.bak -e "s/\(${crate_name}_derive.*version\) = \"$from\"/\1 = \"$to\"/" "$crate_name/Cargo.toml"
 
+# update derive crate's dev dependency on main crate (if any)
+sed -i.bak -e "s/\(${crate_name}.*version\) = \"$from\"/\1 = \"$to\"/" "${crate_name}_derive/Cargo.toml"
+
 rm "$crate_name/Cargo.toml.bak"
 rm "${crate_name}_derive/Cargo.toml.bak"
