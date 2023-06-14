@@ -13,6 +13,14 @@ fn assert_encode_decode<T: Encode + Decode + PartialEq + Debug>(item: &T, bytes:
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "tag")]
+enum TagEnum {
+    A,
+    B,
+    C,
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(enum_behaviour = "union")]
 enum TwoFixedUnion {
     U8(u8),
@@ -120,6 +128,13 @@ fn two_variable_union() {
     );
 }
 
+#[test]
+fn tag_enum() {
+    assert_encode_decode(&TagEnum::A, &[0]);
+    assert_encode_decode(&TagEnum::B, &[1]);
+    assert_encode_decode(&TagEnum::C, &[2]);
+}
+
 #[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(enum_behaviour = "union")]
 enum TwoVecUnion {
@@ -210,6 +225,27 @@ impl TransparentStructNewTypeSkippedField {
 fn transparent_struct_newtype_skipped_field() {
     assert_encode_decode(
         &TransparentStructNewTypeSkippedField::new(vec![42_u8]),
+        &vec![42_u8].as_ssz_bytes(),
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(struct_behaviour = "transparent")]
+struct TransparentStructNewTypeSkippedFieldReverse(
+    #[ssz(skip_serializing, skip_deserializing)] PhantomData<u64>,
+    Vec<u8>,
+);
+
+impl TransparentStructNewTypeSkippedFieldReverse {
+    fn new(inner: Vec<u8>) -> Self {
+        Self(PhantomData, inner)
+    }
+}
+
+#[test]
+fn transparent_struct_newtype_skipped_field_reverse() {
+    assert_encode_decode(
+        &TransparentStructNewTypeSkippedFieldReverse::new(vec![42_u8]),
         &vec![42_u8].as_ssz_bytes(),
     );
 }
