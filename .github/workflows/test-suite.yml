@@ -33,3 +33,18 @@ jobs:
       run: cargo test --release
     - name: Check all examples, binaries, etc
       run: cargo check --all-targets
+  coverage:
+    runs-on: ubuntu-latest
+    name: cargo-tarpaulin
+    steps:
+    - uses: actions/checkout@v3
+    - name: Get latest version of stable Rust
+      run: rustup update stable
+    - name: Install cargo-tarpaulin
+      uses: taiki-e/install-action@cargo-tarpaulin
+    - name: Check code coverage with cargo-tarpaulin
+      run: cargo-tarpaulin --workspace --all-features --out xml
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v2
+      with:
+        fail_ci_if_error: true
