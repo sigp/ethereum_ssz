@@ -8,7 +8,8 @@
 //! - `#[ssz(enum_behaviour = "tag")]`: encodes and decodes an `enum` with 0 fields per variant
 //! - `#[ssz(enum_behaviour = "union")]`: encodes and decodes an `enum` with a one-byte variant selector.
 //! - `#[ssz(enum_behaviour = "transparent")]`: allows encoding an `enum` by serializing only the
-//!     value whilst ignoring outermost the `enum`.
+//!     value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
+//!     in order and the first one that is successful is returned.
 //! - `#[ssz(struct_behaviour = "container")]`: encodes and decodes the `struct` as an SSZ
 //!     "container".
 //! - `#[ssz(struct_behaviour = "transparent")]`: encodes and decodes a `struct` with exactly one
@@ -127,7 +128,7 @@
 //! );
 //!
 //! /// Represented as only the value in the enum variant.
-//! #[derive(Debug, PartialEq, Encode)]
+//! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(enum_behaviour = "transparent")]
 //! enum TransparentEnum {
 //!     Foo(u8),
@@ -141,6 +142,10 @@
 //! assert_eq!(
 //!     TransparentEnum::Bar(vec![42, 42]).as_ssz_bytes(),
 //!     vec![42, 42]
+//! );
+//! assert_eq!(
+//!     TransparentEnum::from_ssz_bytes(&[42, 42]).unwrap(),
+//!     TransparentEnum::Bar(vec![42, 42]),
 //! );
 //!
 //! /// Representated as an SSZ "uint8"
@@ -170,9 +175,6 @@ use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Ident, Index};
 /// extensions).
 const MAX_UNION_SELECTOR: u8 = 127;
 
-const ENUM_TRANSPARENT: &str = "transparent";
-const ENUM_UNION: &str = "union";
-const ENUM_TAG: &str = "tag";
 const NO_ENUM_BEHAVIOUR_ERROR: &str = "enums require an \"enum_behaviour\" attribute with \
     a \"transparent\", \"union\", or \"tag\" value, e.g., #[ssz(enum_behaviour = \"transparent\")]";
 
@@ -524,8 +526,7 @@ fn ssz_encode_derive_struct_transparent(
 ///
 /// The "transparent" method is distinct from the "union" method specified in the SSZ specification.
 /// When using "transparent", the enum will be ignored and the contained field will be serialized as
-/// if the enum does not exist. Since an union variant "selector" is not serialized, it is not
-/// possible to reliably decode an enum that is serialized transparently.
+/// if the enum does not exist.
 ///
 /// ## Limitations
 ///
@@ -739,10 +740,7 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
         Procedure::Enum { data, behaviour } => match behaviour {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
-            EnumBehaviour::Transparent => panic!(
-                "Decode cannot be derived for enum_behaviour \"{}\", only \"{}\" and \"{}\" is valid.",
-                ENUM_TRANSPARENT, ENUM_UNION, ENUM_TAG,
-            ),
+            EnumBehaviour::Transparent => ssz_decode_derive_enum_transparent(&item, data),
         },
     }
 }
@@ -1060,7 +1058,7 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
             let variant_name = &variant.ident;
 
             if variant.fields.len() != 1 {
-                panic!("ssz::Encode can only be derived for enums with 1 field per variant");
+                panic!("ssz::Decode can only be derived for enums with 1 field per variant");
             }
 
             let constructor = quote! {
@@ -1095,6 +1093,65 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
                     )*
                     other => Err(ssz::DecodeError::UnionSelectorInvalid(other))
                 }
+            }
+        }
+    };
+    output.into()
+}
+
+/// Derive `ssz::Decode` for an enum in the "transparent" method.
+///
+/// The "transparent" method attempts to decode into an enum by trying to decode each variant in
+/// order until one is successful.  If no variant decodes successfully,
+/// `ssz::DecodeError::NoMatchingVariant` is returned.
+///
+/// ## Limitations
+///
+/// Only supports enums with a single field per variant.
+///
+/// ## Considerations
+///
+/// The ordering of the enum variants matters.  For example, a variant containing a single
+/// "variable-size" type may always result in a successful decoding (e.g. MyEnum::Foo(Vec<u8>)).
+fn ssz_decode_derive_enum_transparent(
+    derive_input: &DeriveInput,
+    enum_data: &DataEnum,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_name = &variant.ident;
+
+            if variant.fields.len() != 1 {
+                panic!("ssz::Decode can only be derived for enums with 1 field per variant");
+            }
+
+            let constructor = quote! {
+                #name::#variant_name
+            };
+
+            let ty = &(&variant.fields).into_iter().next().unwrap().ty;
+            (constructor, ty)
+        })
+        .unzip();
+
+    let output = quote! {
+        impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                false
+            }
+
+            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+                #(
+                    if let Ok(var) = <#var_types as ssz::Decode>::from_ssz_bytes(bytes) {
+                        return Ok(#constructors(var));
+                    }
+                )*
+                Err(ssz::DecodeError::NoMatchingVariant)
             }
         }
     };
