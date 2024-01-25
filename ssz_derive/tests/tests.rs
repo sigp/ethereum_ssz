@@ -1,4 +1,4 @@
-use ssz::{Decode, Encode};
+use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -56,14 +56,14 @@ struct VariableB {
     b: u8,
 }
 
-#[derive(PartialEq, Debug, Encode)]
+#[derive(PartialEq, Debug, Encode, Decode)]
 #[ssz(enum_behaviour = "transparent")]
 enum TwoVariableTrans {
     A(VariableA),
     B(VariableB),
 }
 
-#[derive(PartialEq, Debug, Encode)]
+#[derive(PartialEq, Debug, Encode, Decode)]
 struct TwoVariableTransStruct {
     a: TwoVariableTrans,
 }
@@ -91,16 +91,24 @@ fn two_variable_trans() {
         b: 3,
     });
 
-    assert_encode(&trans_a, &[1, 5, 0, 0, 0, 2, 3]);
-    assert_encode(&trans_b, &[5, 0, 0, 0, 3, 1, 2]);
+    assert_encode_decode(&trans_a, &[1, 5, 0, 0, 0, 2, 3]);
+    assert_encode_decode(&trans_b, &[5, 0, 0, 0, 3, 1, 2]);
 
-    assert_encode(
+    assert_encode_decode(
         &TwoVariableTransStruct { a: trans_a },
         &[4, 0, 0, 0, 1, 5, 0, 0, 0, 2, 3],
     );
-    assert_encode(
+    assert_encode_decode(
         &TwoVariableTransStruct { a: trans_b },
         &[4, 0, 0, 0, 5, 0, 0, 0, 3, 1, 2],
+    );
+}
+
+#[test]
+fn trans_enum_error() {
+    assert_eq!(
+        TwoVariableTrans::from_ssz_bytes(&[1, 3, 0, 0, 0]).unwrap_err(),
+        DecodeError::NoMatchingVariant,
     );
 }
 

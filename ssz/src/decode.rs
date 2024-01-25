@@ -51,6 +51,8 @@ pub enum DecodeError {
     BytesInvalid(String),
     /// The given union selector is out of bounds.
     UnionSelectorInvalid(u8),
+    /// The given bytes could not be successfully decoded into any variant of the transparent enum.
+    NoMatchingVariant,
 }
 
 /// Performs checks on the `offset` based upon the other parameters provided.
