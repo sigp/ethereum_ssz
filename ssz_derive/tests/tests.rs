@@ -1,4 +1,4 @@
-use ssz::{Decode, Encode, DecodeError};
+use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::fmt::Debug;
 use std::marker::PhantomData;
