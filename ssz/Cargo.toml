@@ -14,12 +14,13 @@ categories = ["cryptography::cryptocurrencies"]
 name = "ssz"
 
 [dev-dependencies]
+alloy-primitives = { version = "0.7.0", features = ["getrandom"] }
 ethereum_ssz_derive = { version = "0.5.3", path = "../ssz_derive" }
 
 [dependencies]
-ethereum-types = "0.14.1"
+alloy-primitives = "0.7.0"
 smallvec = { version = "1.6.1", features = ["const_generics"] }
 itertools = "0.10.3"
 
 [features]
-arbitrary = ["ethereum-types/arbitrary"]
+arbitrary = ["alloy-primitives/arbitrary"]

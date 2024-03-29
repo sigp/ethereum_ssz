@@ -1,6 +1,6 @@
 use super::*;
+use alloy_primitives::{Address, B256, U128, U256};
 use core::num::NonZeroUsize;
-use ethereum_types::{H160, H256, U128, U256};
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -408,7 +408,7 @@ impl Encode for NonZeroUsize {
     }
 }
 
-impl Encode for H160 {
+impl Encode for Address {
     fn is_ssz_fixed_len() -> bool {
         true
     }
@@ -422,11 +422,11 @@ impl Encode for H160 {
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(self.as_bytes());
+        buf.extend_from_slice(self.as_slice());
     }
 }
 
-impl Encode for H256 {
+impl Encode for B256 {
     fn is_ssz_fixed_len() -> bool {
         true
     }
@@ -440,7 +440,7 @@ impl Encode for H256 {
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(self.as_bytes());
+        buf.extend_from_slice(self.as_slice());
     }
 }
 
@@ -458,11 +458,7 @@ impl Encode for U256 {
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        let n = <Self as Encode>::ssz_fixed_len();
-        let s = buf.len();
-
-        buf.resize(s + n, 0);
-        self.to_little_endian(&mut buf[s..]);
+        buf.extend_from_slice(self.as_le_slice());
     }
 }
 
@@ -480,11 +476,7 @@ impl Encode for U128 {
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        let n = <Self as Encode>::ssz_fixed_len();
-        let s = buf.len();
-
-        buf.resize(s + n, 0);
-        self.to_little_endian(&mut buf[s..]);
+        buf.extend_from_slice(self.as_le_slice());
     }
 }
 
@@ -606,16 +598,16 @@ mod tests {
     }
 
     #[test]
-    fn ssz_encode_h256() {
-        assert_eq!(H256::from(&[0; 32]).as_ssz_bytes(), vec![0; 32]);
-        assert_eq!(H256::from(&[1; 32]).as_ssz_bytes(), vec![1; 32]);
+    fn ssz_encode_b256() {
+        assert_eq!(B256::from(&[0; 32]).as_ssz_bytes(), vec![0; 32]);
+        assert_eq!(B256::from(&[1; 32]).as_ssz_bytes(), vec![1; 32]);
 
         let bytes = vec![
             1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0,
         ];
 
-        assert_eq!(H256::from_slice(&bytes).as_ssz_bytes(), bytes);
+        assert_eq!(B256::from_slice(&bytes).as_ssz_bytes(), bytes);
     }
 
     #[test]
