@@ -169,7 +169,7 @@ use darling::{FromDeriveInput, FromMeta};
 use proc_macro::TokenStream;
 use quote::quote;
 use std::convert::TryInto;
-use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Ident, Index};
+use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Expr, Ident, Index};
 
 /// The highest possible union selector value (higher values are reserved for backwards compatible
 /// extensions).
@@ -185,6 +185,10 @@ struct StructOpts {
     enum_behaviour: Option<String>,
     #[darling(default)]
     struct_behaviour: Option<String>,
+    #[darling(default)]
+    max_fields: Option<String>,
+    #[darling(default)]
+    merkleize_as: Option<String>,
 }
 
 /// Field-level configuration.
@@ -202,6 +206,11 @@ enum Procedure<'a> {
     Struct {
         data: &'a syn::DataStruct,
         behaviour: StructBehaviour,
+    },
+    StableStruct {
+        data: &'a syn::DataStruct,
+        max_fields: proc_macro2::TokenStream,
+        merkleize_as: &'a syn::DataStruct,
     },
     Enum {
         data: &'a syn::DataEnum,
@@ -235,12 +244,38 @@ impl<'a> Procedure<'a> {
                         data,
                         behaviour: StructBehaviour::Container,
                     },
+                    Some("stable_container") => if let Some(max_fields_string) = opts.max_fields {
+                        let max_fields_ref = max_fields_string.as_ref();
+                        let max_fields_ty: Expr = syn::parse_str(max_fields_ref).expect("\"max_fields\" is not a valid type.");
+                        let max_fields: proc_macro2::TokenStream = quote! { #max_fields_ty };
+
+                        // Check if `merkleize_as` is set, this implies it is a "variant"
+                        let merkleize_as = if let Some(_merkleize_as_string) = opts.merkleize_as {
+                            // TODO(StableContainer): use the `merkleize_as` type.
+                            data
+                        } else {
+                            // If it is not set, this implies it is the top-level
+                            // `StableContainer`.
+                            // Set the type as itself.
+                            data
+                        };
+
+                        Procedure::StableStruct {
+                            data,
+                            max_fields,
+                            merkleize_as,
+                        }
+                    } else {
+                        panic!(
+                            "\"stable_container\" requires \"max_fields\""
+                            )
+                    },
                     Some("transparent") => Procedure::Struct {
                         data,
                         behaviour: StructBehaviour::Transparent,
                     },
                     Some(other) => panic!(
-                        "{} is not a valid struct behaviour, use \"container\" or \"transparent\"",
+                        "{} is not a valid struct behaviour, use \"container\", \"stable_container\" or \"transparent\"",
                         other
                     ),
                 }
@@ -319,6 +354,11 @@ pub fn ssz_encode_derive(input: TokenStream) -> TokenStream {
             StructBehaviour::Transparent => ssz_encode_derive_struct_transparent(&item, data),
             StructBehaviour::Container => ssz_encode_derive_struct(&item, data),
         },
+        Procedure::StableStruct {
+            data,
+            max_fields,
+            merkleize_as,
+        } => ssz_encode_derive_stable_container(&item, data, max_fields, merkleize_as),
         Procedure::Enum { data, behaviour } => match behaviour {
             EnumBehaviour::Transparent => ssz_encode_derive_enum_transparent(&item, data),
             EnumBehaviour::Union => ssz_encode_derive_enum_union(&item, data),
@@ -439,6 +479,169 @@ fn ssz_encode_derive_struct(derive_input: &DeriveInput, struct_data: &DataStruct
             }
         }
     };
+    output.into()
+}
+
+/// Derive ssz::Encode for a struct as a StableContainer as per EIP-7495.
+fn ssz_encode_derive_stable_container(
+    derive_input: &DeriveInput,
+    struct_data: &DataStruct,
+    max_fields: proc_macro2::TokenStream,
+    merkleize_as: &DataStruct,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    let field_is_ssz_fixed_len = &mut vec![];
+    let field_fixed_len = &mut vec![];
+    let field_ssz_bytes_len = &mut vec![];
+    let field_encoder_append = &mut vec![];
+
+    let mut struct_fields_vec: Vec<&Ident> = vec![];
+    for (ty, ident, field_opts) in parse_ssz_fields(struct_data) {
+        if field_opts.skip_serializing {
+            continue;
+        }
+
+        let ident = match ident {
+            Some(ref ident) => ident,
+            _ => panic!(
+                "#[ssz(struct_behaviour = \"stable_container\")] only supports named struct fields."
+            ),
+        };
+
+        struct_fields_vec.push(ident);
+
+        if let Some(module) = field_opts.with {
+            let module = quote! { #module::encode };
+            field_is_ssz_fixed_len.push(quote! { #module::is_ssz_fixed_len() });
+            field_fixed_len.push(quote! { #module::ssz_fixed_len() });
+            field_ssz_bytes_len.push(quote! { #module::ssz_bytes_len(&self.#ident) });
+            field_encoder_append.push(quote! {
+                encoder.append_parameterized(
+                    #module::is_ssz_fixed_len(),
+                    |buf| #module::ssz_append(&self.#ident, buf)
+                )
+            });
+        } else {
+            field_is_ssz_fixed_len.push(quote! { <#ty as ssz::Encode>::is_ssz_fixed_len() });
+            field_fixed_len.push(quote! { <#ty as ssz::Encode>::ssz_fixed_len() });
+            field_ssz_bytes_len.push(quote! { self.#ident.ssz_bytes_len() });
+            field_encoder_append.push(quote! { encoder.append(&self.#ident) });
+        }
+    }
+
+    let mut merkleize_as_fields_vec: Vec<&Ident> = vec![];
+    for (_, ident_b, field_opts_b) in parse_ssz_fields(merkleize_as) {
+        if field_opts_b.skip_serializing {
+            continue;
+        }
+
+        let ident_b = match ident_b {
+            Some(ref ident_b) => ident_b,
+            _ => panic!(
+                "#[ssz(merkleize_as = {:?})] only supports named struct fields.",
+                ident_b
+            ),
+        };
+
+        merkleize_as_fields_vec.push(ident_b);
+    }
+
+    let output = quote! {
+        impl #impl_generics ssz::Encode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                #(
+                    #field_is_ssz_fixed_len &&
+                )*
+                    true
+            }
+
+            fn ssz_fixed_len() -> usize {
+                if <Self as ssz::Encode>::is_ssz_fixed_len() {
+                    let mut len: usize = 0;
+                    #(
+                        len = len
+                            .checked_add(#field_fixed_len)
+                            .expect("encode ssz_fixed_len length overflow");
+                    )*
+                    len
+                } else {
+                    ssz::BYTES_PER_LENGTH_OFFSET
+                }
+            }
+
+            fn ssz_bytes_len(&self) -> usize {
+                if <Self as ssz::Encode>::is_ssz_fixed_len() {
+                    <Self as ssz::Encode>::ssz_fixed_len()
+                } else {
+                    let mut len: usize = 0;
+                    #(
+                        if #field_is_ssz_fixed_len {
+                            len = len
+                                .checked_add(#field_fixed_len)
+                                .expect("encode ssz_bytes_len length overflow");
+                        } else {
+                            len = len
+                                .checked_add(ssz::BYTES_PER_LENGTH_OFFSET)
+                                .expect("encode ssz_bytes_len length overflow for offset");
+                            len = len
+                                .checked_add(#field_ssz_bytes_len)
+                                .expect("encode ssz_bytes_len length overflow for bytes");
+                        }
+                    )*
+
+                    len
+                }
+            }
+
+            fn ssz_append(&self, buf: &mut Vec<u8>) {
+                let mut offset: usize = 0;
+                #(
+                    if self.#struct_fields_vec.is_some() {
+                    offset = offset
+                        .checked_add(#field_fixed_len)
+                        .expect("encode ssz_append offset overflow");
+                    }
+                )*
+
+                let mut encoder = ssz::SszEncoder::container(buf, offset);
+
+                #(
+                    #field_encoder_append;
+                )*
+
+                encoder.finalize();
+            }
+
+            // Custom ssz_bytes implementation so that we prepend the BitVector.
+            fn as_ssz_bytes(&self) -> Vec<u8> {
+                let mut active_fields = BitVector::<#max_fields>::new();
+
+                let mut working_field: usize = 0;
+
+                #(
+                    if self.#merkleize_as_fields_vec.is_some() {
+                        active_fields.set(working_field, true).expect("Should not be out of bounds");
+                    }
+                    working_field += 1;
+                )*
+
+                let mut bitvector = active_fields.as_ssz_bytes();
+
+
+                // We need to ensure the bitvector is not taken into account when computing
+                // offsets. So finalize the ssz struct before prepending.
+                let mut buf = vec![];
+                self.ssz_append(&mut buf);
+
+                bitvector.append(&mut buf);
+
+                bitvector
+            }
+        }
+    };
+
     output.into()
 }
 
@@ -737,6 +940,7 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
             StructBehaviour::Transparent => ssz_decode_derive_struct_transparent(&item, data),
             StructBehaviour::Container => ssz_decode_derive_struct(&item, data),
         },
+        Procedure::StableStruct { data, max_fields, merkleize_as } => ssz_decode_derive_stable_container(&item, data, max_fields, merkleize_as),
         Procedure::Enum { data, behaviour } => match behaviour {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
@@ -987,6 +1191,189 @@ fn ssz_decode_derive_struct_transparent(
                     )*
 
                 })
+            }
+        }
+    };
+    output.into()
+}
+
+/// Implements `ssz::Decode` for some `struct`.
+///
+/// Fields are decoded in the order they are defined.
+///
+/// ## Field attributes
+///
+/// - `#[ssz(skip_deserializing)]`: during de-serialization the field will be instantiated from a
+/// `Default` implementation. The decoder will assume that the field was not serialized at all
+/// (e.g., if it has been serialized, an error will be raised instead of `Default` overriding it).
+fn ssz_decode_derive_stable_container(
+    item: &DeriveInput,
+    struct_data: &DataStruct,
+    max_fields: proc_macro2::TokenStream,
+    _merkleize_as: &DataStruct,
+) -> TokenStream {
+    let name = &item.ident;
+    let (impl_generics, ty_generics, where_clause) = &item.generics.split_for_impl();
+
+    let mut register_types = vec![];
+    let mut field_names = vec![];
+    let mut fixed_decodes = vec![];
+    let mut decodes = vec![];
+    let mut is_fixed_lens = vec![];
+    let mut fixed_lens = vec![];
+
+    for (ty, ident, field_opts) in parse_ssz_fields(struct_data) {
+        let ident = match ident {
+            Some(ref ident) => ident,
+            _ => panic!(
+                "#[ssz(struct_behaviour = \"stable_container\")] only supports named struct fields."
+            ),
+        };
+
+        field_names.push(quote! {
+            #ident
+        });
+
+        // Field should not be deserialized; use a `Default` impl to instantiate.
+        if field_opts.skip_deserializing {
+            decodes.push(quote! {
+                let #ident = <_>::default();
+            });
+
+            fixed_decodes.push(quote! {
+                let #ident = <_>::default();
+            });
+
+            continue;
+        }
+
+        let is_ssz_fixed_len;
+        let ssz_fixed_len;
+        let from_ssz_bytes;
+        if let Some(module) = field_opts.with {
+            let module = quote! { #module::decode };
+
+            is_ssz_fixed_len = quote! { #module::is_ssz_fixed_len() };
+            ssz_fixed_len = quote! { #module::ssz_fixed_len() };
+            from_ssz_bytes = quote! { #module::from_ssz_bytes(slice) };
+
+            register_types.push(quote! {
+                builder.register_type_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
+            });
+            decodes.push(quote! {
+                let #ident = decoder.decode_next_with(|slice| #module::from_ssz_bytes(slice))?;
+            });
+        } else {
+            is_ssz_fixed_len = quote! { <#ty as ssz::Decode>::is_ssz_fixed_len() };
+            ssz_fixed_len = quote! { <#ty as ssz::Decode>::ssz_fixed_len() };
+            from_ssz_bytes = quote! { <#ty as ssz::Decode>::from_ssz_bytes(slice) };
+
+            register_types.push(quote! {
+                builder.register_type::<#ty>()?
+            });
+            decodes.push(quote! {
+                decoder.decode_next()?
+            });
+        }
+
+        fixed_decodes.push(quote! {
+                start = end;
+                end = end
+                    .checked_add(#ssz_fixed_len)
+                    .ok_or_else(|| ssz::DecodeError::OutOfBoundsByte {
+                        i: usize::max_value()
+                    })?;
+                let slice = bytes.get(start..end)
+                    .ok_or_else(|| ssz::DecodeError::InvalidByteLength {
+                        len: bytes.len(),
+                        expected: end
+                    })?;
+                #from_ssz_bytes?
+        });
+        is_fixed_lens.push(is_ssz_fixed_len);
+        fixed_lens.push(ssz_fixed_len);
+    }
+
+    let output = quote! {
+        impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                #(
+                    #is_fixed_lens &&
+                )*
+                    true
+            }
+
+            fn ssz_fixed_len() -> usize {
+                if <Self as ssz::Decode>::is_ssz_fixed_len() {
+                    let mut len: usize = 0;
+                    #(
+                        len = len
+                            .checked_add(#fixed_lens)
+                            .expect("decode ssz_fixed_len overflow");
+                    )*
+                    len
+                } else {
+                    ssz::BYTES_PER_LENGTH_OFFSET
+                }
+            }
+
+            fn from_ssz_bytes(bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+                // Decode the leading BitVector first.
+                let bitvector_length: usize = (#max_fields::to_usize() + 7) / 8;
+                let bitvector = BitVector::<#max_fields>::from_ssz_bytes(&bytes[0..bitvector_length]).unwrap();
+
+                let bytes = &bytes[bitvector_length..];
+
+                if <Self as ssz::Decode>::is_ssz_fixed_len() {
+
+                    let mut start: usize = 0;
+                    let mut end = start;
+
+                    let mut working_field: usize = 0;
+                    #(
+                        let #field_names = if bitvector.get(working_field).unwrap() {
+                            #fixed_decodes
+                        } else {
+                            None
+                        };
+                        working_field += 1;
+                    )*
+
+                    Ok(Self {
+                        #(
+                            #field_names,
+                        )*
+                    })
+                } else {
+                    let mut builder = ssz::SszDecoderBuilder::new(bytes);
+
+                    let mut working_field: usize = 0;
+                    #(
+                        if bitvector.get(working_field).unwrap() {
+                            #register_types
+                        }
+                        working_field += 1;
+                    )*
+
+                    let mut decoder = builder.build()?;
+
+                    let mut working_field: usize = 0;
+                    #(
+                        let #field_names = if bitvector.get(working_field).unwrap() {
+                            #decodes
+                        } else {
+                            None
+                        };
+                        working_field += 1;
+                    )*
+
+
+                    Ok(Self {
+                        #(
+                            #field_names,
+                        )*
+                    })
+                }
             }
         }
     };

@@ -1,5 +1,9 @@
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
+use ssz_types::{
+    typenum::{self, Unsigned},
+    BitVector,
+};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -256,4 +260,77 @@ fn transparent_struct_newtype_skipped_field_reverse() {
         &TransparentStructNewTypeSkippedFieldReverse::new(vec![42_u8]),
         &vec![42_u8].as_ssz_bytes(),
     );
+}
+
+// Shape tests from EIP.
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(struct_behaviour = "stable_container")]
+#[ssz(max_fields = "typenum::U8")]
+struct Shape {
+    side: Option<u16>,
+    color: Option<u8>,
+    radius: Option<u16>,
+}
+
+// Shape tests from EIP.
+#[derive(PartialEq, Debug, Encode, Decode)]
+//#[tree_hash(profile = "Shape")]
+struct Square {
+    side: u16,
+    color: u8,
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(struct_behaviour = "stable_container")]
+#[ssz(max_fields = "typenum::U8")]
+struct ShapeVec {
+    side: Option<u16>,
+    color: Option<u8>,
+    radius: Option<ssz_types::VariableList<u8, typenum::U8>>,
+}
+
+#[test]
+///Shape(side=None, color=1, radius=0x42)
+/// 06014200
+fn shape_1() {
+    let shape = Shape {
+        side: None,
+        color: Some(1),
+        radius: Some(42),
+    };
+
+    assert_encode_decode(&shape, &vec![6, 1, 42, 0]);
+}
+
+#[test]
+/// Shape(side=0x42, color=1, radius=None)
+/// 03420001
+fn shape_2() {
+    let shape = Shape {
+        side: Some(42),
+        color: Some(1),
+        radius: None,
+    };
+
+    assert_encode_decode(&shape, &vec![3, 42, 0, 1]);
+}
+
+#[test]
+/// Square(side=0x42, color=1)
+/// 420001
+fn square() {
+    let square = Square { side: 42, color: 1 };
+
+    assert_encode_decode(&square, &vec![42, 0, 1]);
+}
+
+#[test]
+fn shape_3() {
+    let shape = ShapeVec {
+        side: None,
+        color: Some(1),
+        radius: Some(vec![1, 2, 3, 4].into()),
+    };
+
+    assert_encode_decode(&shape, &vec![6, 1, 5, 0, 0, 0, 1, 2, 3, 4]);
 }
