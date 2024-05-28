@@ -272,12 +272,18 @@ struct Shape {
     radius: Option<u16>,
 }
 
-// Shape tests from EIP.
 #[derive(PartialEq, Debug, Encode, Decode)]
-//#[tree_hash(profile = "Shape")]
+#[ssz(struct_behaviour = "profile")]
 struct Square {
     side: u16,
     color: u8,
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(struct_behaviour = "profile")]
+struct Circle {
+    color: u8,
+    radius: u16,
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
@@ -290,22 +296,9 @@ struct ShapeVec {
 }
 
 #[test]
-///Shape(side=None, color=1, radius=0x42)
-/// 06014200
-fn shape_1() {
-    let shape = Shape {
-        side: None,
-        color: Some(1),
-        radius: Some(42),
-    };
-
-    assert_encode_decode(&shape, &vec![6, 1, 42, 0]);
-}
-
-#[test]
 /// Shape(side=0x42, color=1, radius=None)
 /// 03420001
-fn shape_2() {
+fn shape_1() {
     let shape = Shape {
         side: Some(42),
         color: Some(1),
@@ -316,12 +309,37 @@ fn shape_2() {
 }
 
 #[test]
+///Shape(side=None, color=1, radius=0x42)
+/// 06014200
+fn shape_2() {
+    let shape = Shape {
+        side: None,
+        color: Some(1),
+        radius: Some(42),
+    };
+
+    assert_encode_decode(&shape, &vec![6, 1, 42, 0]);
+}
+
+#[test]
 /// Square(side=0x42, color=1)
 /// 420001
 fn square() {
     let square = Square { side: 42, color: 1 };
 
     assert_encode_decode(&square, &vec![42, 0, 1]);
+}
+
+#[test]
+//Circle(radius=0x42, color=1)
+//014200
+fn circle() {
+    let circle = Circle {
+        radius: 42,
+        color: 1,
+    };
+
+    assert_encode_decode(&circle, &vec![1, 42, 0])
 }
 
 #[test]

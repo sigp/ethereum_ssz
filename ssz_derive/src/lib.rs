@@ -187,8 +187,6 @@ struct StructOpts {
     struct_behaviour: Option<String>,
     #[darling(default)]
     max_fields: Option<String>,
-    #[darling(default)]
-    merkleize_as: Option<String>,
 }
 
 /// Field-level configuration.
@@ -210,7 +208,9 @@ enum Procedure<'a> {
     StableStruct {
         data: &'a syn::DataStruct,
         max_fields: proc_macro2::TokenStream,
-        merkleize_as: &'a syn::DataStruct,
+    },
+    ProfileStruct {
+        data: &'a syn::DataStruct,
     },
     Enum {
         data: &'a syn::DataEnum,
@@ -249,27 +249,16 @@ impl<'a> Procedure<'a> {
                         let max_fields_ty: Expr = syn::parse_str(max_fields_ref).expect("\"max_fields\" is not a valid type.");
                         let max_fields: proc_macro2::TokenStream = quote! { #max_fields_ty };
 
-                        // Check if `merkleize_as` is set, this implies it is a "variant"
-                        let merkleize_as = if let Some(_merkleize_as_string) = opts.merkleize_as {
-                            // TODO(StableContainer): use the `merkleize_as` type.
-                            data
-                        } else {
-                            // If it is not set, this implies it is the top-level
-                            // `StableContainer`.
-                            // Set the type as itself.
-                            data
-                        };
-
                         Procedure::StableStruct {
                             data,
                             max_fields,
-                            merkleize_as,
                         }
                     } else {
                         panic!(
                             "\"stable_container\" requires \"max_fields\""
                             )
                     },
+                    Some("profile") => Procedure::ProfileStruct { data },
                     Some("transparent") => Procedure::Struct {
                         data,
                         behaviour: StructBehaviour::Transparent,
@@ -354,11 +343,10 @@ pub fn ssz_encode_derive(input: TokenStream) -> TokenStream {
             StructBehaviour::Transparent => ssz_encode_derive_struct_transparent(&item, data),
             StructBehaviour::Container => ssz_encode_derive_struct(&item, data),
         },
-        Procedure::StableStruct {
-            data,
-            max_fields,
-            merkleize_as,
-        } => ssz_encode_derive_stable_container(&item, data, max_fields, merkleize_as),
+        Procedure::StableStruct { data, max_fields } => {
+            ssz_encode_derive_stable_container(&item, data, max_fields)
+        }
+        Procedure::ProfileStruct { data } => ssz_encode_derive_profile_container(&item, data),
         Procedure::Enum { data, behaviour } => match behaviour {
             EnumBehaviour::Transparent => ssz_encode_derive_enum_transparent(&item, data),
             EnumBehaviour::Union => ssz_encode_derive_enum_union(&item, data),
@@ -487,7 +475,6 @@ fn ssz_encode_derive_stable_container(
     derive_input: &DeriveInput,
     struct_data: &DataStruct,
     max_fields: proc_macro2::TokenStream,
-    merkleize_as: &DataStruct,
 ) -> TokenStream {
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
@@ -529,23 +516,6 @@ fn ssz_encode_derive_stable_container(
             field_ssz_bytes_len.push(quote! { self.#ident.ssz_bytes_len() });
             field_encoder_append.push(quote! { encoder.append(&self.#ident) });
         }
-    }
-
-    let mut merkleize_as_fields_vec: Vec<&Ident> = vec![];
-    for (_, ident_b, field_opts_b) in parse_ssz_fields(merkleize_as) {
-        if field_opts_b.skip_serializing {
-            continue;
-        }
-
-        let ident_b = match ident_b {
-            Some(ref ident_b) => ident_b,
-            _ => panic!(
-                "#[ssz(merkleize_as = {:?})] only supports named struct fields.",
-                ident_b
-            ),
-        };
-
-        merkleize_as_fields_vec.push(ident_b);
     }
 
     let output = quote! {
@@ -621,7 +591,7 @@ fn ssz_encode_derive_stable_container(
                 let mut working_field: usize = 0;
 
                 #(
-                    if self.#merkleize_as_fields_vec.is_some() {
+                    if self.#struct_fields_vec.is_some() {
                         active_fields.set(working_field, true).expect("Should not be out of bounds");
                     }
                     working_field += 1;
@@ -637,6 +607,170 @@ fn ssz_encode_derive_stable_container(
 
                 bitvector.append(&mut buf);
 
+                bitvector
+            }
+        }
+    };
+
+    output.into()
+}
+
+/// Derive ssz::Encode for a struct as a Profile[B] as per EIP-7495.
+fn ssz_encode_derive_profile_container(
+    derive_input: &DeriveInput,
+    struct_data: &DataStruct,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    let field_is_ssz_fixed_len = &mut vec![];
+    let field_fixed_len = &mut vec![];
+    let field_ssz_bytes_len = &mut vec![];
+    let field_encoder_append = &mut vec![];
+
+    let mut optional_field_names: Vec<&Ident> = vec![];
+    let mut optional_count: usize = 0;
+
+    for (ty, ident, field_opts) in parse_ssz_fields(struct_data) {
+        if field_opts.skip_serializing {
+            continue;
+        }
+
+        let ident = match ident {
+            Some(ref ident) => ident,
+            _ => {
+                panic!("#[ssz(struct_behaviour = \"profile\")] only supports named struct fields.")
+            }
+        };
+
+        // Check if field is an Option;
+        if ty_inner_type("Option", ty).is_some() {
+            optional_field_names.push(ident);
+            optional_count += 1;
+        }
+
+        if let Some(module) = field_opts.with {
+            let module = quote! { #module::encode };
+            field_is_ssz_fixed_len.push(quote! { #module::is_ssz_fixed_len() });
+            field_fixed_len.push(quote! { #module::ssz_fixed_len() });
+            field_ssz_bytes_len.push(quote! { #module::ssz_bytes_len(&self.#ident) });
+            field_encoder_append.push(quote! {
+                encoder.append_parameterized(
+                    #module::is_ssz_fixed_len(),
+                    |buf| #module::ssz_append(&self.#ident, buf)
+                )
+            });
+        } else {
+            field_is_ssz_fixed_len.push(quote! { <#ty as ssz::Encode>::is_ssz_fixed_len() });
+            field_fixed_len.push(quote! { <#ty as ssz::Encode>::ssz_fixed_len() });
+            field_ssz_bytes_len.push(quote! { self.#ident.ssz_bytes_len() });
+            field_encoder_append.push(quote! { encoder.append(&self.#ident) });
+        }
+    }
+
+    // We can infer the typenum required for the BitVector from the number of optional fields.
+    let typenum = format!("typenum::U{optional_count}");
+    let max_optional_fields: syn::Expr = syn::parse_str(&typenum).unwrap();
+
+    let output = quote! {
+        impl #impl_generics ssz::Encode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                #(
+                    #field_is_ssz_fixed_len &&
+                )*
+                    true
+            }
+
+            fn ssz_fixed_len() -> usize {
+                if <Self as ssz::Encode>::is_ssz_fixed_len() {
+                    let mut len: usize = 0;
+                    #(
+                        len = len
+                            .checked_add(#field_fixed_len)
+                            .expect("encode ssz_fixed_len length overflow");
+                    )*
+                    len
+                } else {
+                    ssz::BYTES_PER_LENGTH_OFFSET
+                }
+            }
+
+            fn ssz_bytes_len(&self) -> usize {
+                if <Self as ssz::Encode>::is_ssz_fixed_len() {
+                    <Self as ssz::Encode>::ssz_fixed_len()
+                } else {
+                    let mut len: usize = 0;
+                    #(
+                        if #field_is_ssz_fixed_len {
+                            len = len
+                                .checked_add(#field_fixed_len)
+                                .expect("encode ssz_bytes_len length overflow");
+                        } else {
+                            len = len
+                                .checked_add(ssz::BYTES_PER_LENGTH_OFFSET)
+                                .expect("encode ssz_bytes_len length overflow for offset");
+                            len = len
+                                .checked_add(#field_ssz_bytes_len)
+                                .expect("encode ssz_bytes_len length overflow for bytes");
+                        }
+                    )*
+
+                    len
+                }
+            }
+
+            fn ssz_append(&self, buf: &mut Vec<u8>) {
+                let mut offset: usize = 0;
+
+                #(
+                    offset = offset
+                        .checked_add(#field_fixed_len)
+                        .expect("encode ssz_append offset overflow");
+                )*
+
+                let mut encoder = ssz::SszEncoder::container(buf, offset);
+
+                #(
+                    #field_encoder_append;
+                )*
+
+                encoder.finalize();
+            }
+
+            // Custom ssz_bytes implementation so that we prepend the BitVector.
+            fn as_ssz_bytes(&self) -> Vec<u8> {
+                if #optional_count == 0 {
+                    let mut buf = vec![];
+                    self.ssz_append(&mut buf);
+                    return buf
+                }
+
+                // Construct the BitVector. This should only contain the bits of Optional values. A
+                // `true` value indicates the Optional is `Some`. A `false ` value indicates the
+                // Optional is `None`.
+                let mut optional_fields = ssz_types::BitVector::<#max_optional_fields>::new();
+
+                // Iterate through the list of optional fields and check if they are Some.
+                // If it is, set the appropriate bit in the bitvector to true.
+                // Otherwise it is None and therefore stays false.
+                // This assumes the field names in `optional_field_names` are in order.
+                let mut working_index: usize = 0;
+
+                #(
+                    if self.#optional_field_names.is_some() {
+                        optional_fields.set(working_index, true).expect("Should not be out of bounds");
+                    }
+                    working_index += 1;
+                )*
+
+                let mut bitvector = optional_fields.as_ssz_bytes();
+
+                // We need to ensure the bitvector is not taken into account when computing
+                // offsets. So finalize the ssz struct before prepending.
+                let mut buf = vec![];
+                self.ssz_append(&mut buf);
+
+                bitvector.append(&mut buf);
                 bitvector
             }
         }
@@ -940,7 +1074,8 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
             StructBehaviour::Transparent => ssz_decode_derive_struct_transparent(&item, data),
             StructBehaviour::Container => ssz_decode_derive_struct(&item, data),
         },
-        Procedure::StableStruct { data, max_fields, merkleize_as } => ssz_decode_derive_stable_container(&item, data, max_fields, merkleize_as),
+        Procedure::StableStruct { data, max_fields} => ssz_decode_derive_stable_container(&item, data, max_fields),
+        Procedure::ProfileStruct { data } => ssz_decode_derive_profile_container(&item, data),
         Procedure::Enum { data, behaviour } => match behaviour {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
@@ -1210,7 +1345,6 @@ fn ssz_decode_derive_stable_container(
     item: &DeriveInput,
     struct_data: &DataStruct,
     max_fields: proc_macro2::TokenStream,
-    _merkleize_as: &DataStruct,
 ) -> TokenStream {
     let name = &item.ident;
     let (impl_generics, ty_generics, where_clause) = &item.generics.split_for_impl();
@@ -1367,6 +1501,225 @@ fn ssz_decode_derive_stable_container(
                         working_field += 1;
                     )*
 
+
+                    Ok(Self {
+                        #(
+                            #field_names,
+                        )*
+                    })
+                }
+            }
+        }
+    };
+    output.into()
+}
+
+fn ssz_decode_derive_profile_container(
+    item: &DeriveInput,
+    struct_data: &DataStruct,
+) -> TokenStream {
+    let name = &item.ident;
+    let (impl_generics, ty_generics, where_clause) = &item.generics.split_for_impl();
+
+    let mut register_types = vec![];
+    let mut field_names = vec![];
+    let mut fixed_decodes = vec![];
+    let mut decodes = vec![];
+    let mut is_fixed_lens = vec![];
+    let mut fixed_lens = vec![];
+    let mut optional_field_indices: Vec<usize> = vec![];
+    let mut optional_field_names: Vec<&Ident> = vec![];
+    // Since we use a truncated bitvector, we need to keep track of which optional field we are up
+    // to.
+    let mut working_optional_index: usize = 0;
+
+    for (field_index, (ty, ident, field_opts)) in
+        parse_ssz_fields(struct_data).into_iter().enumerate()
+    {
+        let mut is_optional = false;
+        let ident = match ident {
+            Some(ref ident) => ident,
+            _ => {
+                panic!("#[ssz(struct_behaviour = \"profile\")] only supports named struct fields.")
+            }
+        };
+
+        field_names.push(quote! {
+            #ident
+        });
+
+        // Field should not be deserialized; use a `Default` impl to instantiate.
+        if field_opts.skip_deserializing {
+            decodes.push(quote! {
+                let #ident = <_>::default();
+            });
+
+            fixed_decodes.push(quote! {
+                let #ident = <_>::default();
+            });
+
+            continue;
+        }
+
+        // Check if field is optional.
+        if ty_inner_type("Option", ty).is_some() {
+            optional_field_indices.push(field_index);
+            optional_field_names.push(ident);
+            is_optional = true;
+        }
+
+        let is_ssz_fixed_len;
+        let ssz_fixed_len;
+        let from_ssz_bytes;
+        if let Some(module) = field_opts.with {
+            let module = quote! { #module::decode };
+
+            is_ssz_fixed_len = quote! { #module::is_ssz_fixed_len() };
+            ssz_fixed_len = quote! { #module::ssz_fixed_len() };
+            from_ssz_bytes = quote! { #module::from_ssz_bytes(slice) };
+
+            register_types.push(quote! {
+                builder.register_type_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
+            });
+            // If the field is optional, we need to check the bitvector before decoding.
+            if is_optional {
+                decodes.push(quote! {
+                    if bitvector.get(#working_optional_index).unwrap()
+                    if self.#ident.is_some() {
+                        let #ident = decoder.decode_next_with(|slice| #module::from_ssz_bytes(slice))?;
+                    } else {
+                        // Value is None so just decode an Option::default();
+                        let #ident = <_>::default();
+                    }
+                });
+            }
+        } else {
+            is_ssz_fixed_len = quote! { <#ty as ssz::Decode>::is_ssz_fixed_len() };
+            ssz_fixed_len = quote! { <#ty as ssz::Decode>::ssz_fixed_len() };
+            from_ssz_bytes = quote! { <#ty as ssz::Decode>::from_ssz_bytes(slice) };
+
+            register_types.push(quote! {
+                builder.register_type::<#ty>()?;
+            });
+            decodes.push(quote! {
+                let #ident = decoder.decode_next()?;
+            });
+        }
+
+        // If the field is optional, we need to check the bitvector before decoding.
+        if is_optional {
+            fixed_decodes.push(quote! {
+                let #ident = {
+                    if bitvector.get(#working_optional_index).unwrap() {
+                        start = end;
+                        end = end
+                            .checked_add(#ssz_fixed_len)
+                            .ok_or_else(|| ssz::DecodeError::OutOfBoundsByte {
+                                i: usize::max_value()
+                            })?;
+                        let slice = bytes.get(start..end)
+                            .ok_or_else(|| ssz::DecodeError::InvalidByteLength {
+                                len: bytes.len(),
+                                expected: end
+                            })?;
+                        #from_ssz_bytes?
+                } else {
+                        // Value is None so just decode an Option::default().
+                        <_>::default()
+                    }
+                };
+            });
+            is_fixed_lens.push(is_ssz_fixed_len);
+            fixed_lens.push(ssz_fixed_len);
+        } else {
+            fixed_decodes.push(quote! {
+            let #ident = {
+                    start = end;
+                    end = end
+                        .checked_add(#ssz_fixed_len)
+                        .ok_or_else(|| ssz::DecodeError::OutOfBoundsByte {
+                            i: usize::max_value()
+                        })?;
+                    let slice = bytes.get(start..end)
+                        .ok_or_else(|| ssz::DecodeError::InvalidByteLength {
+                            len: bytes.len(),
+                            expected: end
+                        })?;
+                    #from_ssz_bytes?
+            };
+            });
+            is_fixed_lens.push(is_ssz_fixed_len);
+            fixed_lens.push(ssz_fixed_len);
+        }
+        if is_optional {
+            working_optional_index += 1
+        };
+    }
+
+    // We can infer the typenum required for the BitVector from the number of optional fields.
+    let typenum = format!("typenum::U{working_optional_index}");
+    let max_optional_fields: Expr = syn::parse_str(&typenum).unwrap();
+
+    let output = quote! {
+        impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                #(
+                    #is_fixed_lens &&
+                )*
+                    true
+            }
+
+            fn ssz_fixed_len() -> usize {
+                if <Self as ssz::Decode>::is_ssz_fixed_len() {
+                    let mut len: usize = 0;
+                    #(
+                        len = len
+                            .checked_add(#fixed_lens)
+                            .expect("decode ssz_fixed_len overflow");
+                    )*
+                    len
+                } else {
+                    ssz::BYTES_PER_LENGTH_OFFSET
+                }
+            }
+
+            fn from_ssz_bytes(bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+                // Decode the leading BitVector first.
+                let bitvector_length: usize = (#max_optional_fields::to_usize() + 7) / 8;
+                let bitvector = if bitvector_length == 0 {
+                    ssz_types::BitVector::<#max_optional_fields>::new()
+                } else {
+                    ssz_types::BitVector::<#max_optional_fields>::from_ssz_bytes(&bytes[0..bitvector_length]).unwrap()
+                };
+
+                let bytes = &bytes[bitvector_length..];
+
+                if <Self as ssz::Decode>::is_ssz_fixed_len() {
+
+                    let mut start: usize = 0;
+                    let mut end = start;
+
+                    #(
+                            #fixed_decodes
+                    )*
+
+                    Ok(Self {
+                        #(
+                            #field_names,
+                        )*
+                    })
+                } else {
+                    let mut builder = ssz::SszDecoderBuilder::new(bytes);
+
+                    #(
+                            #register_types
+                    )*
+
+                    let mut decoder = builder.build()?;
+
+                    #(
+                            #decodes
+                    )*
 
                     Ok(Self {
                         #(
@@ -1566,4 +1919,24 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
     );
 
     union_selectors
+}
+
+fn ty_inner_type<'a>(wrapper: &str, ty: &'a syn::Type) -> Option<&'a syn::Type> {
+    if let syn::Type::Path(ref p) = ty {
+        if p.path.segments.len() != 1 || p.path.segments[0].ident != wrapper {
+            return None;
+        }
+
+        if let syn::PathArguments::AngleBracketed(ref inner_ty) = p.path.segments[0].arguments {
+            if inner_ty.args.len() != 1 {
+                return None;
+            }
+
+            let inner_ty = inner_ty.args.first().unwrap();
+            if let syn::GenericArgument::Type(ref t) = inner_ty {
+                return Some(t);
+            }
+        }
+    }
+    None
 }
