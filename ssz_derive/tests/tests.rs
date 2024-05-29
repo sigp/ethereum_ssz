@@ -276,6 +276,8 @@ struct Shape {
 #[ssz(struct_behaviour = "profile")]
 struct Square {
     side: u16,
+    #[ssz(skip_serializing, skip_deserializing)]
+    skip: Vec<u8>,
     color: u8,
 }
 
@@ -292,7 +294,9 @@ struct Circle {
 struct ShapeVec {
     side: Option<u16>,
     color: Option<u8>,
-    radius: Option<ssz_types::VariableList<u8, typenum::U8>>,
+    #[ssz(skip_serializing, skip_deserializing)]
+    skip: Vec<u8>,
+    radius: Option<ssz_types::VariableList<u8, typenum::U4>>,
 }
 
 #[test]
@@ -325,7 +329,11 @@ fn shape_2() {
 /// Square(side=0x42, color=1)
 /// 420001
 fn square() {
-    let square = Square { side: 42, color: 1 };
+    let square = Square {
+        side: 42,
+        skip: vec![],
+        color: 1,
+    };
 
     assert_encode_decode(&square, &vec![42, 0, 1]);
 }
@@ -347,6 +355,7 @@ fn shape_3() {
     let shape = ShapeVec {
         side: None,
         color: Some(1),
+        skip: vec![],
         radius: Some(vec![1, 2, 3, 4].into()),
     };
 

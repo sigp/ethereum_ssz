@@ -589,7 +589,6 @@ fn ssz_encode_derive_stable_container(
                 let mut active_fields = BitVector::<#max_fields>::new();
 
                 let mut working_field: usize = 0;
-
                 #(
                     if self.#struct_fields_vec.is_some() {
                         active_fields.set(working_field, true).expect("Should not be out of bounds");
@@ -1356,6 +1355,8 @@ fn ssz_decode_derive_stable_container(
     let mut is_fixed_lens = vec![];
     let mut fixed_lens = vec![];
 
+    let mut working_index: usize = 0;
+
     for (ty, ident, field_opts) in parse_ssz_fields(struct_data) {
         let ident = match ident {
             Some(ref ident) => ident,
@@ -1403,14 +1404,21 @@ fn ssz_decode_derive_stable_container(
             from_ssz_bytes = quote! { <#ty as ssz::Decode>::from_ssz_bytes(slice) };
 
             register_types.push(quote! {
-                builder.register_type::<#ty>()?
+                if bitvector.get(#working_index).unwrap() {
+                    builder.register_type::<#ty>()?;
+                }
             });
             decodes.push(quote! {
-                decoder.decode_next()?
+                let #ident = if bitvector.get(#working_index).unwrap() {
+                  decoder.decode_next()?
+                } else {
+                    None
+                };
             });
         }
 
         fixed_decodes.push(quote! {
+            let #ident = if bitvector.get(#working_index).unwrap() {
                 start = end;
                 end = end
                     .checked_add(#ssz_fixed_len)
@@ -1423,9 +1431,14 @@ fn ssz_decode_derive_stable_container(
                         expected: end
                     })?;
                 #from_ssz_bytes?
+            } else {
+                None
+            };
         });
         is_fixed_lens.push(is_ssz_fixed_len);
         fixed_lens.push(ssz_fixed_len);
+
+        working_index += 1;
     }
 
     let output = quote! {
@@ -1463,14 +1476,8 @@ fn ssz_decode_derive_stable_container(
                     let mut start: usize = 0;
                     let mut end = start;
 
-                    let mut working_field: usize = 0;
                     #(
-                        let #field_names = if bitvector.get(working_field).unwrap() {
-                            #fixed_decodes
-                        } else {
-                            None
-                        };
-                        working_field += 1;
+                        #fixed_decodes
                     )*
 
                     Ok(Self {
@@ -1481,26 +1488,15 @@ fn ssz_decode_derive_stable_container(
                 } else {
                     let mut builder = ssz::SszDecoderBuilder::new(bytes);
 
-                    let mut working_field: usize = 0;
                     #(
-                        if bitvector.get(working_field).unwrap() {
-                            #register_types
-                        }
-                        working_field += 1;
+                        #register_types
                     )*
 
                     let mut decoder = builder.build()?;
 
-                    let mut working_field: usize = 0;
                     #(
-                        let #field_names = if bitvector.get(working_field).unwrap() {
-                            #decodes
-                        } else {
-                            None
-                        };
-                        working_field += 1;
+                        #decodes
                     )*
-
 
                     Ok(Self {
                         #(
@@ -1527,15 +1523,12 @@ fn ssz_decode_derive_profile_container(
     let mut decodes = vec![];
     let mut is_fixed_lens = vec![];
     let mut fixed_lens = vec![];
-    let mut optional_field_indices: Vec<usize> = vec![];
     let mut optional_field_names: Vec<&Ident> = vec![];
     // Since we use a truncated bitvector, we need to keep track of which optional field we are up
     // to.
     let mut working_optional_index: usize = 0;
 
-    for (field_index, (ty, ident, field_opts)) in
-        parse_ssz_fields(struct_data).into_iter().enumerate()
-    {
+    for (ty, ident, field_opts) in parse_ssz_fields(struct_data) {
         let mut is_optional = false;
         let ident = match ident {
             Some(ref ident) => ident,
@@ -1563,7 +1556,6 @@ fn ssz_decode_derive_profile_container(
 
         // Check if field is optional.
         if ty_inner_type("Option", ty).is_some() {
-            optional_field_indices.push(field_index);
             optional_field_names.push(ident);
             is_optional = true;
         }
@@ -1581,18 +1573,9 @@ fn ssz_decode_derive_profile_container(
             register_types.push(quote! {
                 builder.register_type_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
             });
-            // If the field is optional, we need to check the bitvector before decoding.
-            if is_optional {
-                decodes.push(quote! {
-                    if bitvector.get(#working_optional_index).unwrap()
-                    if self.#ident.is_some() {
-                        let #ident = decoder.decode_next_with(|slice| #module::from_ssz_bytes(slice))?;
-                    } else {
-                        // Value is None so just decode an Option::default();
-                        let #ident = <_>::default();
-                    }
-                });
-            }
+            decodes.push(quote! {
+                let #ident = decoder.decode_next_with(|slice| #module::from_ssz_bytes(slice))?;
+            });
         } else {
             is_ssz_fixed_len = quote! { <#ty as ssz::Decode>::is_ssz_fixed_len() };
             ssz_fixed_len = quote! { <#ty as ssz::Decode>::ssz_fixed_len() };
@@ -1601,9 +1584,19 @@ fn ssz_decode_derive_profile_container(
             register_types.push(quote! {
                 builder.register_type::<#ty>()?;
             });
-            decodes.push(quote! {
-                let #ident = decoder.decode_next()?;
-            });
+            if is_optional {
+                decodes.push(quote! {
+                    let #ident = if bitvector.get(#working_optional_index).unwrap() {
+                        decoder.decode_next()?
+                    } else {
+                        <_>::default()
+                    };
+                });
+            } else {
+                decodes.push(quote! {
+                    let #ident = decoder.decode_next()?;
+                });
+            }
         }
 
         // If the field is optional, we need to check the bitvector before decoding.
@@ -1651,6 +1644,8 @@ fn ssz_decode_derive_profile_container(
             is_fixed_lens.push(is_ssz_fixed_len);
             fixed_lens.push(ssz_fixed_len);
         }
+
+        // Increment the working index so we check the next field of the bitvector.
         if is_optional {
             working_optional_index += 1
         };
