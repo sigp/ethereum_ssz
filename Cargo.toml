@@ -3,3 +3,4 @@ members = [
     "ssz",
     "ssz_derive",
 ]
+resolver = "2"
