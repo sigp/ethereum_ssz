@@ -249,14 +249,18 @@ impl Decode for NonZeroUsize {
 
 impl<T: Decode> Decode for Option<T> {
     fn is_ssz_fixed_len() -> bool {
-        false
+        T::is_ssz_fixed_len()
     }
+
+    fn ssz_fixed_len() -> usize {
+        T::ssz_fixed_len()
+    }
+
     fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-        let (selector, body) = split_union_bytes(bytes)?;
-        match selector.into() {
-            0u8 => Ok(None),
-            1u8 => <T as Decode>::from_ssz_bytes(body).map(Option::Some),
-            other => Err(DecodeError::UnionSelectorInvalid(other)),
+        if bytes.is_empty() {
+            Ok(None)
+        } else {
+            T::from_ssz_bytes(bytes).map(Some)
         }
     }
 }

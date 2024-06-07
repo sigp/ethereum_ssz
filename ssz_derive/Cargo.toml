@@ -19,6 +19,7 @@ syn = "1.0.42"
 proc-macro2 = "1.0.23"
 quote = "1.0.7"
 darling = "0.13.0"
+ssz_types = { git = "https://github.com/macladson/ssz_types", branch = "stable-container" }
 
 [dev-dependencies]
-ethereum_ssz = { path = "../ssz" }
+ethereum_ssz = { git = "https://github.com/macladson/ethereum_ssz", branch = "stable-container" }

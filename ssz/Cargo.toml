@@ -14,7 +14,7 @@ categories = ["cryptography::cryptocurrencies"]
 name = "ssz"
 
 [dev-dependencies]
-ethereum_ssz_derive = { version = "0.5.4", path = "../ssz_derive" }
+ethereum_ssz_derive = { path = "../ssz_derive" }
 
 [dependencies]
 ethereum-types = "0.14.1"
