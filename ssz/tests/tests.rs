@@ -1,8 +1,9 @@
-use ethereum_types::H256;
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 
 mod round_trip {
+    use alloy_primitives::B256;
+
     use super::*;
     use std::collections::BTreeMap;
     use std::iter::FromIterator;
@@ -37,28 +38,28 @@ mod round_trip {
     }
 
     #[test]
-    fn h256() {
-        let items: Vec<H256> = vec![H256::zero(), H256::from([1; 32]), H256::random()];
+    fn b256() {
+        let items: Vec<B256> = vec![B256::ZERO, B256::from([1; 32]), B256::random()];
 
         round_trip(items);
     }
 
     #[test]
-    fn vec_of_h256() {
-        let items: Vec<Vec<H256>> = vec![
+    fn vec_of_b256() {
+        let items: Vec<Vec<B256>> = vec![
             vec![],
-            vec![H256::zero(), H256::from([1; 32]), H256::random()],
+            vec![B256::ZERO, B256::from([1; 32]), B256::random()],
         ];
 
         round_trip(items);
     }
 
     #[test]
-    fn option_vec_h256() {
-        let items: Vec<Option<Vec<H256>>> = vec![
+    fn option_vec_b256() {
+        let items: Vec<Option<Vec<B256>>> = vec![
             None,
             Some(vec![]),
-            Some(vec![H256::zero(), H256::from([1; 32]), H256::random()]),
+            Some(vec![B256::ZERO, B256::from([1; 32]), B256::random()]),
         ];
 
         round_trip(items);
