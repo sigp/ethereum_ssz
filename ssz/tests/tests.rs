@@ -1,4 +1,4 @@
-use ethereum_types::H256;
+use ethereum_types::{H160, H256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 
@@ -6,6 +6,8 @@ mod round_trip {
     use super::*;
     use std::collections::BTreeMap;
     use std::iter::FromIterator;
+    use std::num::NonZeroUsize;
+    use std::sync::Arc;
 
     fn round_trip<T: Encode + Decode + std::fmt::Debug + PartialEq>(items: Vec<T>) {
         for item in items {
@@ -32,6 +34,23 @@ mod round_trip {
     #[test]
     fn u8_array_4() {
         let items: Vec<[u8; 4]> = vec![[0, 0, 0, 0], [1, 0, 0, 0], [1, 2, 3, 4], [1, 2, 0, 4]];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn h160() {
+        let items: Vec<H160> = vec![H160::zero(), H160::from([1; 20]), H160::random()];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn vec_of_h160() {
+        let items: Vec<Vec<H160>> = vec![
+            vec![],
+            vec![H160::zero(), H160::from([1; 20]), H160::random()],
+        ];
 
         round_trip(items);
     }
@@ -385,6 +404,28 @@ mod round_trip {
                 ),
             ]),
         ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn non_zero_usize() {
+        let data = vec![
+            NonZeroUsize::new(1).unwrap(),
+            NonZeroUsize::new(u16::MAX as usize).unwrap(),
+            NonZeroUsize::new(usize::MAX).unwrap(),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_u64() {
+        let data = vec![Arc::new(0u64), Arc::new(u64::MAX)];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_vec_u64() {
+        let data = vec![Arc::new(vec![0u64]), Arc::new(vec![u64::MAX; 10])];
         round_trip(data);
     }
 }
