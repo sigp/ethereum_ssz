@@ -40,6 +40,7 @@ impl_decodable_for_uint!(u8, 8);
 impl_decodable_for_uint!(u16, 16);
 impl_decodable_for_uint!(u32, 32);
 impl_decodable_for_uint!(u64, 64);
+impl_decodable_for_uint!(u128, 128);
 
 #[cfg(target_pointer_width = "32")]
 impl_decodable_for_uint!(usize, 32);
@@ -773,5 +774,23 @@ mod tests {
             <(u16, u16)>::from_ssz_bytes(&[255, 255, 0, 0]),
             Ok((65535, 0))
         );
+    }
+
+    #[test]
+    fn vec_of_u128_roundtrip() {
+        let values = vec![
+            vec![0u128, 55u128, u128::MAX, u128::MAX - 3],
+            vec![],
+            vec![u128::MAX],
+            vec![u32::MAX as u128],
+            vec![0, 0, 0, 0],
+            vec![0, 0, 0, 0, 0, 0],
+        ];
+        for vec in values {
+            assert_eq!(
+                Vec::<u128>::from_ssz_bytes(&vec.as_ssz_bytes()).unwrap(),
+                vec
+            );
+        }
     }
 }
