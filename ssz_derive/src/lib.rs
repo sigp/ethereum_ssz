@@ -288,7 +288,11 @@ fn parse_ssz_fields(
             let field_opts_candidates = field
                 .attrs
                 .iter()
-                .filter(|attr| attr.path.get_ident().map_or(false, |ident| *ident == "ssz"))
+                .filter(|attr| {
+                    attr.path()
+                        .get_ident()
+                        .map_or(false, |ident| *ident == "ssz")
+                })
                 .collect::<Vec<_>>();
 
             if field_opts_candidates.len() > 1 {
@@ -297,10 +301,7 @@ fn parse_ssz_fields(
 
             let field_opts = field_opts_candidates
                 .first()
-                .map(|attr| {
-                    let meta = attr.parse_meta().unwrap();
-                    FieldOpts::from_meta(&meta).unwrap()
-                })
+                .map(|attr| FieldOpts::from_meta(&attr.meta).unwrap())
                 .unwrap_or_default();
 
             (ty, ident, field_opts)
