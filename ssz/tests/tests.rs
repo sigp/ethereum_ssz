@@ -1,7 +1,27 @@
 use ethereum_types::{H160, H256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
+use std::fmt::Debug;
 use std::num::NonZeroUsize;
+
+struct ForceDrop<T> {
+    x: T,
+}
+
+impl<T> Drop for ForceDrop<T> {
+    fn drop(&mut self) {}
+}
+
+// Assert that the results of two functions are equal, while trying to ensure they don't get
+// const-evaled by the compiler and omitted from coverage reports
+#[inline(never)]
+fn assert_eq_const_fn<T: PartialEq + Debug>(f: impl FnOnce() -> T, g: impl FnOnce() -> T) {
+    let fx = ForceDrop { x: f() };
+    let gx = ForceDrop { x: g() };
+    assert_eq!(fx.x, gx.x);
+    drop(fx);
+    drop(gx);
+}
 
 mod round_trip {
     use super::*;
@@ -10,14 +30,11 @@ mod round_trip {
     use std::sync::Arc;
 
     fn round_trip<T: Encode + Decode + std::fmt::Debug + PartialEq>(items: Vec<T>) {
-        assert_eq!(
-            <T as Encode>::is_ssz_fixed_len(),
-            <T as Decode>::is_ssz_fixed_len()
+        assert_eq_const_fn(
+            <T as Encode>::is_ssz_fixed_len,
+            <T as Decode>::is_ssz_fixed_len,
         );
-        assert_eq!(
-            <T as Encode>::ssz_fixed_len(),
-            <T as Decode>::ssz_fixed_len()
-        );
+        assert_eq_const_fn(<T as Encode>::ssz_fixed_len, <T as Decode>::ssz_fixed_len);
 
         for item in items {
             let encoded = &item.as_ssz_bytes();
