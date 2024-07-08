@@ -1,13 +1,24 @@
-use ethereum_types::H256;
+use ethereum_types::{H160, H256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
+use std::num::NonZeroUsize;
 
 mod round_trip {
     use super::*;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     use std::iter::FromIterator;
+    use std::sync::Arc;
 
     fn round_trip<T: Encode + Decode + std::fmt::Debug + PartialEq>(items: Vec<T>) {
+        assert_eq!(
+            <T as Encode>::is_ssz_fixed_len(),
+            <T as Decode>::is_ssz_fixed_len()
+        );
+        assert_eq!(
+            <T as Encode>::ssz_fixed_len(),
+            <T as Decode>::ssz_fixed_len()
+        );
+
         for item in items {
             let encoded = &item.as_ssz_bytes();
             assert_eq!(item.ssz_bytes_len(), encoded.len());
@@ -32,6 +43,23 @@ mod round_trip {
     #[test]
     fn u8_array_4() {
         let items: Vec<[u8; 4]> = vec![[0, 0, 0, 0], [1, 0, 0, 0], [1, 2, 3, 4], [1, 2, 0, 4]];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn h160() {
+        let items: Vec<H160> = vec![H160::zero(), H160::from([1; 20]), H160::random()];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn vec_of_h160() {
+        let items: Vec<Vec<H160>> = vec![
+            vec![],
+            vec![H160::zero(), H160::from([1; 20]), H160::random()],
+        ];
 
         round_trip(items);
     }
@@ -155,7 +183,7 @@ mod round_trip {
         round_trip(items);
     }
 
-    #[derive(Debug, PartialEq, Encode, Decode)]
+    #[derive(Debug, PartialEq, Eq, Encode, Decode)]
     struct VariableLen {
         a: u16,
         b: Vec<u16>,
@@ -277,7 +305,7 @@ mod round_trip {
         round_trip(items);
     }
 
-    #[derive(Debug, PartialEq, Encode, Decode)]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
     struct ThreeVariableLen {
         a: u16,
         b: Vec<u16>,
@@ -386,5 +414,84 @@ mod round_trip {
             ]),
         ];
         round_trip(data);
+    }
+
+    #[test]
+    fn btree_set_fixed() {
+        let data = vec![BTreeSet::new(), BTreeSet::from_iter(vec![0u16, 2, 4, 6])];
+        round_trip(data);
+    }
+
+    #[test]
+    fn btree_set_variable_len() {
+        let data = vec![
+            BTreeSet::new(),
+            BTreeSet::from_iter(vec![
+                ThreeVariableLen {
+                    a: 1,
+                    b: vec![3, 5, 7],
+                    c: vec![],
+                    d: vec![0, 0],
+                },
+                ThreeVariableLen {
+                    a: 99,
+                    b: vec![1],
+                    c: vec![2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    d: vec![4, 5, 6, 7, 8],
+                },
+                ThreeVariableLen {
+                    a: 0,
+                    b: vec![],
+                    c: vec![],
+                    d: vec![],
+                },
+            ]),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn non_zero_usize() {
+        let data = vec![
+            NonZeroUsize::new(1).unwrap(),
+            NonZeroUsize::new(u16::MAX as usize).unwrap(),
+            NonZeroUsize::new(usize::MAX).unwrap(),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_u64() {
+        let data = vec![Arc::new(0u64), Arc::new(u64::MAX)];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_vec_u64() {
+        let data = vec![Arc::new(vec![0u64]), Arc::new(vec![u64::MAX; 10])];
+        round_trip(data);
+    }
+}
+
+/// Decode tests that are expected to fail.
+mod decode_fail {
+    use super::*;
+
+    #[test]
+    fn non_zero_usize() {
+        let zero_bytes = 0usize.as_ssz_bytes();
+        assert!(NonZeroUsize::from_ssz_bytes(&zero_bytes).is_err());
+    }
+
+    #[test]
+    fn hash160() {
+        let long_bytes = H256::repeat_byte(0xff).as_ssz_bytes();
+        assert!(H160::from_ssz_bytes(&long_bytes).is_err());
+    }
+
+    #[test]
+    fn hash256() {
+        let long_bytes = vec![0xff; 257];
+        assert!(H256::from_ssz_bytes(&long_bytes).is_err());
     }
 }
