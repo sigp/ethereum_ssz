@@ -43,7 +43,7 @@ jobs:
     - name: Install cargo-tarpaulin
       uses: taiki-e/install-action@cargo-tarpaulin
     - name: Check code coverage with cargo-tarpaulin
-      run: cargo-tarpaulin --workspace --all-features --out xml
+      run: make coverage
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v4
       with:
