@@ -1,6 +1,6 @@
 use super::*;
 use crate::decode::try_from_iter::{TryCollect, TryFromIter};
-use alloy_primitives::{Address, B256, U128, U256};
+use alloy_primitives::{Address, Bytes, FixedBytes, U128, U256};
 use core::num::NonZeroUsize;
 use itertools::process_results;
 use smallvec::SmallVec;
@@ -296,24 +296,27 @@ impl Decode for Address {
     }
 }
 
-impl Decode for B256 {
+impl<const N: usize> Decode for FixedBytes<N> {
     fn is_ssz_fixed_len() -> bool {
         true
     }
 
     fn ssz_fixed_len() -> usize {
-        32
+        N
     }
 
     fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = bytes.len();
-        let expected = <Self as Decode>::ssz_fixed_len();
-
-        if len != expected {
-            Err(DecodeError::InvalidByteLength { len, expected })
-        } else {
-            Ok(B256::from_slice(bytes))
+        if bytes.len() != N {
+            return Err(DecodeError::InvalidByteLength {
+                len: bytes.len(),
+                expected: N,
+            });
         }
+
+        let mut fixed_array = [0u8; N];
+        fixed_array.copy_from_slice(bytes);
+
+        Ok(Self(fixed_array))
     }
 }
 
@@ -335,6 +338,18 @@ impl Decode for U256 {
         } else {
             Ok(U256::from_le_slice(bytes))
         }
+    }
+}
+
+impl Decode for Bytes {
+    #[inline]
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    #[inline]
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        Ok(bytes.to_vec().into())
     }
 }
 
@@ -527,6 +542,7 @@ pub fn decode_list_of_variable_length_items<T: Decode, Container: TryFromIter<T>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::B256;
 
     // Note: decoding of valid bytes is generally tested "indirectly" in the `/tests` dir, by
     // encoding then decoding the element.
