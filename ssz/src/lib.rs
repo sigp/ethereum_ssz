@@ -34,11 +34,13 @@
 //!
 //! See `examples/` for manual implementations of the `Encode` and `Decode` traits.
 
+mod bitfield;
 mod decode;
 mod encode;
 pub mod legacy;
 mod union_selector;
 
+pub use bitfield::{BitList, BitVector};
 pub use decode::{
     impls::decode_list_of_variable_length_items, read_offset, split_union_bytes,
     try_from_iter::TryFromIter, Decode, DecodeError, SszDecoder, SszDecoderBuilder,
