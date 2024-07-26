@@ -80,7 +80,8 @@ pub type BitVector<N> = Bitfield<Fixed<N>>;
 /// - `BitVector<N>` is an alias for `Bitfield<Fixed<N>>`
 ///
 /// ```
-/// use ssz_types::{BitVector, BitList, typenum};
+/// use ssz::{BitVector, BitList};
+/// use typenum;
 ///
 /// // `BitList` has a type-level maximum length. The length of the list is specified at runtime
 /// // and it must be less than or equal to `N`. After instantiation, `BitList` cannot grow or
@@ -152,8 +153,9 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     ///
     /// ## Example
     /// ```
-    /// use ssz_types::{BitList, typenum};
+    /// use ssz::BitList;
     /// use smallvec::SmallVec;
+    /// use typenum;
     ///
     /// type BitList8 = BitList<typenum::U8>;
     ///
@@ -280,8 +282,9 @@ impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
     ///
     /// ## Example
     /// ```
-    /// use ssz_types::{BitVector, typenum};
+    /// use ssz::BitVector;
     /// use smallvec::SmallVec;
+    /// use typenum;
     ///
     /// type BitVector4 = BitVector<typenum::U4>;
     ///
