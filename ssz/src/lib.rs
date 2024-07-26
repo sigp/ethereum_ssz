@@ -41,7 +41,7 @@ pub mod legacy;
 mod union_selector;
 
 #[doc(hidden)]
-pub use bitfield::{Bitfield, BitList, BitVector, Fixed, Variable};
+pub use bitfield::{BitList, BitVector, Bitfield, Fixed, Variable};
 pub use decode::{
     impls::decode_list_of_variable_length_items, read_offset, split_union_bytes,
     try_from_iter::TryFromIter, Decode, DecodeError, SszDecoder, SszDecoderBuilder,
