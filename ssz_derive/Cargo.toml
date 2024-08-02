@@ -15,10 +15,10 @@ name = "ssz_derive"
 proc-macro = true
 
 [dependencies]
-syn = "1.0.42"
+syn = "2.0.69"
 proc-macro2 = "1.0.23"
-quote = "1.0.7"
-darling = "0.13.0"
+quote = "1.0.18"
+darling = "0.20.9"
 
 [dev-dependencies]
 ethereum_ssz = { path = "../ssz" }

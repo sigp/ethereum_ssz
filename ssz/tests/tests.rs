@@ -1,14 +1,24 @@
+use alloy_primitives::{Address, B256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
+use std::num::NonZeroUsize;
 
 mod round_trip {
-    use alloy_primitives::B256;
-
     use super::*;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     use std::iter::FromIterator;
+    use std::sync::Arc;
 
     fn round_trip<T: Encode + Decode + std::fmt::Debug + PartialEq>(items: Vec<T>) {
+        assert_eq!(
+            <T as Encode>::is_ssz_fixed_len(),
+            <T as Decode>::is_ssz_fixed_len()
+        );
+        assert_eq!(
+            <T as Encode>::ssz_fixed_len(),
+            <T as Decode>::ssz_fixed_len()
+        );
+
         for item in items {
             let encoded = &item.as_ssz_bytes();
             assert_eq!(item.ssz_bytes_len(), encoded.len());
@@ -38,8 +48,33 @@ mod round_trip {
     }
 
     #[test]
-    fn b256() {
-        let items: Vec<B256> = vec![B256::ZERO, B256::from([1; 32]), B256::random()];
+    fn address() {
+        let items: Vec<Address> = vec![
+            Address::repeat_byte(0),
+            Address::from([1; 20]),
+            Address::random(),
+        ];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn vec_of_address() {
+        let items: Vec<Vec<Address>> = vec![
+            vec![],
+            vec![
+                Address::repeat_byte(0),
+                Address::from([1; 20]),
+                Address::random(),
+            ],
+        ];
+
+        round_trip(items);
+    }
+
+    #[test]
+    fn h256() {
+        let items: Vec<B256> = vec![B256::repeat_byte(0), B256::from([1; 32]), B256::random()];
 
         round_trip(items);
     }
@@ -156,7 +191,7 @@ mod round_trip {
         round_trip(items);
     }
 
-    #[derive(Debug, PartialEq, Encode, Decode)]
+    #[derive(Debug, PartialEq, Eq, Encode, Decode)]
     struct VariableLen {
         a: u16,
         b: Vec<u16>,
@@ -278,7 +313,7 @@ mod round_trip {
         round_trip(items);
     }
 
-    #[derive(Debug, PartialEq, Encode, Decode)]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
     struct ThreeVariableLen {
         a: u16,
         b: Vec<u16>,
@@ -387,5 +422,84 @@ mod round_trip {
             ]),
         ];
         round_trip(data);
+    }
+
+    #[test]
+    fn btree_set_fixed() {
+        let data = vec![BTreeSet::new(), BTreeSet::from_iter(vec![0u16, 2, 4, 6])];
+        round_trip(data);
+    }
+
+    #[test]
+    fn btree_set_variable_len() {
+        let data = vec![
+            BTreeSet::new(),
+            BTreeSet::from_iter(vec![
+                ThreeVariableLen {
+                    a: 1,
+                    b: vec![3, 5, 7],
+                    c: vec![],
+                    d: vec![0, 0],
+                },
+                ThreeVariableLen {
+                    a: 99,
+                    b: vec![1],
+                    c: vec![2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    d: vec![4, 5, 6, 7, 8],
+                },
+                ThreeVariableLen {
+                    a: 0,
+                    b: vec![],
+                    c: vec![],
+                    d: vec![],
+                },
+            ]),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn non_zero_usize() {
+        let data = vec![
+            NonZeroUsize::new(1).unwrap(),
+            NonZeroUsize::new(u16::MAX as usize).unwrap(),
+            NonZeroUsize::new(usize::MAX).unwrap(),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_u64() {
+        let data = vec![Arc::new(0u64), Arc::new(u64::MAX)];
+        round_trip(data);
+    }
+
+    #[test]
+    fn arc_vec_u64() {
+        let data = vec![Arc::new(vec![0u64]), Arc::new(vec![u64::MAX; 10])];
+        round_trip(data);
+    }
+}
+
+/// Decode tests that are expected to fail.
+mod decode_fail {
+    use super::*;
+
+    #[test]
+    fn non_zero_usize() {
+        let zero_bytes = 0usize.as_ssz_bytes();
+        assert!(NonZeroUsize::from_ssz_bytes(&zero_bytes).is_err());
+    }
+
+    #[test]
+    fn hash160() {
+        let long_bytes = B256::repeat_byte(0xff).as_ssz_bytes();
+        assert!(Address::from_ssz_bytes(&long_bytes).is_err());
+    }
+
+    #[test]
+    fn hash256() {
+        let long_bytes = vec![0xff; 257];
+        assert!(B256::from_ssz_bytes(&long_bytes).is_err());
     }
 }
