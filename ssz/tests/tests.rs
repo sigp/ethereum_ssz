@@ -1,4 +1,4 @@
-use ethereum_types::{H160, H256};
+use alloy_primitives::{Address, B256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::num::NonZeroUsize;
@@ -48,17 +48,25 @@ mod round_trip {
     }
 
     #[test]
-    fn h160() {
-        let items: Vec<H160> = vec![H160::zero(), H160::from([1; 20]), H160::random()];
+    fn address() {
+        let items: Vec<Address> = vec![
+            Address::repeat_byte(0),
+            Address::from([1; 20]),
+            Address::random(),
+        ];
 
         round_trip(items);
     }
 
     #[test]
-    fn vec_of_h160() {
-        let items: Vec<Vec<H160>> = vec![
+    fn vec_of_address() {
+        let items: Vec<Vec<Address>> = vec![
             vec![],
-            vec![H160::zero(), H160::from([1; 20]), H160::random()],
+            vec![
+                Address::repeat_byte(0),
+                Address::from([1; 20]),
+                Address::random(),
+            ],
         ];
 
         round_trip(items);
@@ -66,27 +74,27 @@ mod round_trip {
 
     #[test]
     fn h256() {
-        let items: Vec<H256> = vec![H256::zero(), H256::from([1; 32]), H256::random()];
+        let items: Vec<B256> = vec![B256::repeat_byte(0), B256::from([1; 32]), B256::random()];
 
         round_trip(items);
     }
 
     #[test]
-    fn vec_of_h256() {
-        let items: Vec<Vec<H256>> = vec![
+    fn vec_of_b256() {
+        let items: Vec<Vec<B256>> = vec![
             vec![],
-            vec![H256::zero(), H256::from([1; 32]), H256::random()],
+            vec![B256::ZERO, B256::from([1; 32]), B256::random()],
         ];
 
         round_trip(items);
     }
 
     #[test]
-    fn option_vec_h256() {
-        let items: Vec<Option<Vec<H256>>> = vec![
+    fn option_vec_b256() {
+        let items: Vec<Option<Vec<B256>>> = vec![
             None,
             Some(vec![]),
-            Some(vec![H256::zero(), H256::from([1; 32]), H256::random()]),
+            Some(vec![B256::ZERO, B256::from([1; 32]), B256::random()]),
         ];
 
         round_trip(items);
@@ -485,13 +493,13 @@ mod decode_fail {
 
     #[test]
     fn hash160() {
-        let long_bytes = H256::repeat_byte(0xff).as_ssz_bytes();
-        assert!(H160::from_ssz_bytes(&long_bytes).is_err());
+        let long_bytes = B256::repeat_byte(0xff).as_ssz_bytes();
+        assert!(Address::from_ssz_bytes(&long_bytes).is_err());
     }
 
     #[test]
     fn hash256() {
         let long_bytes = vec![0xff; 257];
-        assert!(H256::from_ssz_bytes(&long_bytes).is_err());
+        assert!(B256::from_ssz_bytes(&long_bytes).is_err());
     }
 }
