@@ -1,5 +1,5 @@
 use super::*;
-use alloy_primitives::{Address, B256, U128, U256};
+use alloy_primitives::{Address, Bytes, FixedBytes, U128, U256};
 use core::num::NonZeroUsize;
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, BTreeSet};
@@ -427,21 +427,52 @@ impl Encode for Address {
     }
 }
 
-impl Encode for B256 {
+impl<const N: usize> Encode for FixedBytes<N> {
+    #[inline]
     fn is_ssz_fixed_len() -> bool {
         true
     }
 
-    fn ssz_fixed_len() -> usize {
-        32
-    }
-
+    #[inline]
     fn ssz_bytes_len(&self) -> usize {
-        32
+        N
     }
 
+    #[inline]
+    fn ssz_fixed_len() -> usize {
+        N
+    }
+
+    #[inline]
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(self.as_slice());
+        buf.extend_from_slice(&self.0);
+    }
+
+    #[inline]
+    fn as_ssz_bytes(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+
+impl Encode for Bytes {
+    #[inline]
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    #[inline]
+    fn ssz_bytes_len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.0);
+    }
+
+    #[inline]
+    fn as_ssz_bytes(&self) -> Vec<u8> {
+        self.0.to_vec()
     }
 }
 
@@ -510,6 +541,7 @@ impl_encodable_for_u8_array!(48);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::B256;
 
     #[test]
     fn vec_of_u8() {
