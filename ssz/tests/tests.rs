@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, U128};
+use alloy_primitives::{Address, B256, U128, U256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::num::NonZeroUsize;
@@ -498,6 +498,28 @@ mod round_trip {
             vec![None],
             vec![],
             vec![Some(U128::from(0))],
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn alloy_u256() {
+        let data = vec![
+            U256::from(0),
+            U256::MAX,
+            U256::from(u64::MAX),
+            U256::from(255),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn vec_of_option_alloy_u256() {
+        let data = vec![
+            vec![Some(U256::MAX), Some(U256::from(0)), None],
+            vec![None],
+            vec![],
+            vec![Some(U256::from(0))],
         ];
         round_trip(data);
     }
