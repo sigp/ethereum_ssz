@@ -1,7 +1,7 @@
 use super::*;
 use crate::decode::try_from_iter::{TryCollect, TryFromIter};
+use alloy_primitives::{Address, Bytes, FixedBytes, U128, U256};
 use core::num::NonZeroUsize;
-use ethereum_types::{H160, H256, U128, U256};
 use itertools::process_results;
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, BTreeSet};
@@ -275,7 +275,7 @@ impl<T: Decode> Decode for Arc<T> {
     }
 }
 
-impl Decode for H160 {
+impl Decode for Address {
     fn is_ssz_fixed_len() -> bool {
         true
     }
@@ -296,24 +296,27 @@ impl Decode for H160 {
     }
 }
 
-impl Decode for H256 {
+impl<const N: usize> Decode for FixedBytes<N> {
     fn is_ssz_fixed_len() -> bool {
         true
     }
 
     fn ssz_fixed_len() -> usize {
-        32
+        N
     }
 
     fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = bytes.len();
-        let expected = <Self as Decode>::ssz_fixed_len();
-
-        if len != expected {
-            Err(DecodeError::InvalidByteLength { len, expected })
-        } else {
-            Ok(H256::from_slice(bytes))
+        if bytes.len() != N {
+            return Err(DecodeError::InvalidByteLength {
+                len: bytes.len(),
+                expected: N,
+            });
         }
+
+        let mut fixed_array = [0u8; N];
+        fixed_array.copy_from_slice(bytes);
+
+        Ok(Self(fixed_array))
     }
 }
 
@@ -333,8 +336,20 @@ impl Decode for U256 {
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(U256::from_little_endian(bytes))
+            Ok(U256::from_le_slice(bytes))
         }
+    }
+}
+
+impl Decode for Bytes {
+    #[inline]
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    #[inline]
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        Ok(bytes.to_vec().into())
     }
 }
 
@@ -354,7 +369,7 @@ impl Decode for U128 {
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(U128::from_little_endian(bytes))
+            Ok(U128::from_le_slice(bytes))
         }
     }
 }
@@ -527,6 +542,7 @@ pub fn decode_list_of_variable_length_items<T: Decode, Container: TryFromIter<T>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::B256;
 
     // Note: decoding of valid bytes is generally tested "indirectly" in the `/tests` dir, by
     // encoding then decoding the element.
@@ -576,9 +592,9 @@ mod tests {
     }
 
     #[test]
-    fn invalid_h256() {
+    fn invalid_b256() {
         assert_eq!(
-            H256::from_ssz_bytes(&[0; 33]),
+            B256::from_ssz_bytes(&[0; 33]),
             Err(DecodeError::InvalidByteLength {
                 len: 33,
                 expected: 32
@@ -586,7 +602,7 @@ mod tests {
         );
 
         assert_eq!(
-            H256::from_ssz_bytes(&[0; 31]),
+            B256::from_ssz_bytes(&[0; 31]),
             Err(DecodeError::InvalidByteLength {
                 len: 31,
                 expected: 32
