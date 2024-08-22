@@ -1,6 +1,6 @@
 use super::*;
 use crate::decode::try_from_iter::{TryCollect, TryFromIter};
-use alloy_primitives::{Address, Bytes, FixedBytes, U128, U256};
+use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, U128, U256};
 use core::num::NonZeroUsize;
 use itertools::process_results;
 use smallvec::SmallVec;
@@ -317,6 +317,27 @@ impl<const N: usize> Decode for FixedBytes<N> {
         fixed_array.copy_from_slice(bytes);
 
         Ok(Self(fixed_array))
+    }
+}
+
+impl Decode for Bloom {
+    fn is_ssz_fixed_len() -> bool {
+        true
+    }
+
+    fn ssz_fixed_len() -> usize {
+        256
+    }
+
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
+        let expected = <Self as Decode>::ssz_fixed_len();
+
+        if len != expected {
+            Err(DecodeError::InvalidByteLength { len, expected })
+        } else {
+            Ok(Self::from_slice(bytes))
+        }
     }
 }
 
