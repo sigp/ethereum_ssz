@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, B256, U128, U256};
+use alloy_primitives::{Address, Bloom, Bytes, B256, U128, U256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::num::NonZeroUsize;
@@ -540,6 +540,26 @@ mod round_trip {
         let data = vec![(48u8, Some(0u64)), (0u8, None), (u8::MAX, Some(u64::MAX))];
         round_trip(data);
     }
+
+    #[test]
+    fn bloom() {
+        let data = vec![
+            Bloom::ZERO,
+            Bloom::with_last_byte(5),
+            Bloom::repeat_byte(73),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn vec_bloom() {
+        let data = vec![
+            vec![Bloom::ZERO, Bloom::ZERO, Bloom::with_last_byte(5)],
+            vec![],
+            vec![Bloom::repeat_byte(73), Bloom::repeat_byte(72)],
+        ];
+        round_trip(data);
+    }
 }
 
 /// Decode tests that are expected to fail.
@@ -562,5 +582,11 @@ mod decode_fail {
     fn hash256() {
         let long_bytes = vec![0xff; 257];
         assert!(B256::from_ssz_bytes(&long_bytes).is_err());
+    }
+
+    #[test]
+    fn bloom() {
+        let long_bytes = vec![0xff; 33];
+        assert!(Bloom::from_ssz_bytes(&long_bytes).is_err());
     }
 }
