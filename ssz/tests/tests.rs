@@ -580,13 +580,13 @@ mod decode_fail {
 
     #[test]
     fn hash256() {
-        let long_bytes = vec![0xff; 257];
+        let long_bytes = vec![0xff; 33];
         assert!(B256::from_ssz_bytes(&long_bytes).is_err());
     }
 
     #[test]
     fn bloom() {
-        let long_bytes = vec![0xff; 33];
+        let long_bytes = vec![0xff; 257];
         assert!(Bloom::from_ssz_bytes(&long_bytes).is_err());
     }
 }
