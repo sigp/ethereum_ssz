@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn vec_of_u8() {
         let vec: Vec<u8> = vec![];
-        assert_eq!(vec.as_ssz_bytes(), vec![]);
+        assert_eq!(vec.as_ssz_bytes(), Vec::<u8>::new());
 
         let vec: Vec<u8> = vec![1];
         assert_eq!(vec.as_ssz_bytes(), vec![1]);
@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn vec_of_vec_of_u8() {
         let vec: Vec<Vec<u8>> = vec![];
-        assert_eq!(vec.as_ssz_bytes(), vec![]);
+        assert_eq!(vec.as_ssz_bytes(), Vec::<u8>::new());
 
         let vec: Vec<Vec<u8>> = vec![vec![]];
         assert_eq!(vec.as_ssz_bytes(), vec![4, 0, 0, 0]);
