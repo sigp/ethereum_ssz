@@ -257,6 +257,24 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     pub fn is_subset(&self, other: &Self) -> bool {
         self.difference(other).is_zero()
     }
+
+    /// Returns a new BitList of length M, with the same bits set as `self`.
+    pub fn resize<M: Unsigned + Clone>(&self) -> Result<Bitfield<Variable<M>>, Error> {
+        if N::to_usize() > M::to_usize() {
+            return Err(Error::InvalidByteCount {
+                given: M::to_usize(),
+                expected: N::to_usize() + 1,
+            });
+        }
+
+        let mut resized = Bitfield::<Variable<M>>::with_capacity(M::to_usize())?;
+
+        for (i, bit) in self.iter().enumerate() {
+            resized.set(i, bit)?;
+        }
+
+        Ok(resized)
+    }
 }
 
 impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
@@ -1393,5 +1411,22 @@ mod bitlist {
     #[test]
     fn size_of() {
         assert_eq!(std::mem::size_of::<BitList1024>(), SMALLVEC_LEN + 24);
+    }
+
+    #[test]
+    fn resize() {
+        let mut bit_list = BitList1::with_capacity(1).unwrap();
+        bit_list.set(0, true).unwrap();
+        assert_eq!(bit_list.len(), 1);
+        assert_eq!(bit_list.num_set_bits(), 1);
+        assert_eq!(bit_list.highest_set_bit().unwrap(), 0);
+
+        let resized_bit_list = bit_list.resize::<typenum::U1024>().unwrap();
+        assert_eq!(resized_bit_list.len(), 1024);
+        assert_eq!(resized_bit_list.num_set_bits(), 1);
+        assert_eq!(resized_bit_list.highest_set_bit().unwrap(), 0);
+
+        // Can't extend a BitList to a smaller BitList
+        resized_bit_list.resize::<typenum::U16>().unwrap_err();
     }
 }
