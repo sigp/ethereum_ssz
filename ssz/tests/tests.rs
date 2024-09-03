@@ -1,4 +1,4 @@
-use ethereum_types::{H160, H256};
+use alloy_primitives::{Address, Bloom, Bytes, B256, U128, U256};
 use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::num::NonZeroUsize;
@@ -48,17 +48,25 @@ mod round_trip {
     }
 
     #[test]
-    fn h160() {
-        let items: Vec<H160> = vec![H160::zero(), H160::from([1; 20]), H160::random()];
+    fn address() {
+        let items: Vec<Address> = vec![
+            Address::repeat_byte(0),
+            Address::from([1; 20]),
+            Address::random(),
+        ];
 
         round_trip(items);
     }
 
     #[test]
-    fn vec_of_h160() {
-        let items: Vec<Vec<H160>> = vec![
+    fn vec_of_address() {
+        let items: Vec<Vec<Address>> = vec![
             vec![],
-            vec![H160::zero(), H160::from([1; 20]), H160::random()],
+            vec![
+                Address::repeat_byte(0),
+                Address::from([1; 20]),
+                Address::random(),
+            ],
         ];
 
         round_trip(items);
@@ -66,27 +74,27 @@ mod round_trip {
 
     #[test]
     fn h256() {
-        let items: Vec<H256> = vec![H256::zero(), H256::from([1; 32]), H256::random()];
+        let items: Vec<B256> = vec![B256::repeat_byte(0), B256::from([1; 32]), B256::random()];
 
         round_trip(items);
     }
 
     #[test]
-    fn vec_of_h256() {
-        let items: Vec<Vec<H256>> = vec![
+    fn vec_of_b256() {
+        let items: Vec<Vec<B256>> = vec![
             vec![],
-            vec![H256::zero(), H256::from([1; 32]), H256::random()],
+            vec![B256::ZERO, B256::from([1; 32]), B256::random()],
         ];
 
         round_trip(items);
     }
 
     #[test]
-    fn option_vec_h256() {
-        let items: Vec<Option<Vec<H256>>> = vec![
+    fn option_vec_b256() {
+        let items: Vec<Option<Vec<B256>>> = vec![
             None,
             Some(vec![]),
-            Some(vec![H256::zero(), H256::from([1; 32]), H256::random()]),
+            Some(vec![B256::ZERO, B256::from([1; 32]), B256::random()]),
         ];
 
         round_trip(items);
@@ -471,6 +479,87 @@ mod round_trip {
         let data = vec![Arc::new(vec![0u64]), Arc::new(vec![u64::MAX; 10])];
         round_trip(data);
     }
+
+    #[test]
+    fn alloy_u128() {
+        let data = vec![
+            U128::from(0),
+            U128::from(u128::MAX),
+            U128::from(u64::MAX),
+            U128::from(255),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn vec_of_option_alloy_u128() {
+        let data = vec![
+            vec![Some(U128::from(u128::MAX)), Some(U128::from(0)), None],
+            vec![None],
+            vec![],
+            vec![Some(U128::from(0))],
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn u256() {
+        let data = vec![
+            U256::from(0),
+            U256::MAX,
+            U256::from(u64::MAX),
+            U256::from(255),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn vec_of_option_u256() {
+        let data = vec![
+            vec![Some(U256::MAX), Some(U256::from(0)), None],
+            vec![None],
+            vec![],
+            vec![Some(U256::from(0))],
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn alloy_bytes() {
+        let data = vec![
+            Bytes::new(),
+            Bytes::from_static(&[1, 2, 3]),
+            Bytes::from_static(&[0; 32]),
+            Bytes::from_static(&[0]),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn tuple_option() {
+        let data = vec![(48u8, Some(0u64)), (0u8, None), (u8::MAX, Some(u64::MAX))];
+        round_trip(data);
+    }
+
+    #[test]
+    fn bloom() {
+        let data = vec![
+            Bloom::ZERO,
+            Bloom::with_last_byte(5),
+            Bloom::repeat_byte(73),
+        ];
+        round_trip(data);
+    }
+
+    #[test]
+    fn vec_bloom() {
+        let data = vec![
+            vec![Bloom::ZERO, Bloom::ZERO, Bloom::with_last_byte(5)],
+            vec![],
+            vec![Bloom::repeat_byte(73), Bloom::repeat_byte(72)],
+        ];
+        round_trip(data);
+    }
 }
 
 /// Decode tests that are expected to fail.
@@ -485,13 +574,19 @@ mod decode_fail {
 
     #[test]
     fn hash160() {
-        let long_bytes = H256::repeat_byte(0xff).as_ssz_bytes();
-        assert!(H160::from_ssz_bytes(&long_bytes).is_err());
+        let long_bytes = B256::repeat_byte(0xff).as_ssz_bytes();
+        assert!(Address::from_ssz_bytes(&long_bytes).is_err());
     }
 
     #[test]
     fn hash256() {
+        let long_bytes = vec![0xff; 33];
+        assert!(B256::from_ssz_bytes(&long_bytes).is_err());
+    }
+
+    #[test]
+    fn bloom() {
         let long_bytes = vec![0xff; 257];
-        assert!(H256::from_ssz_bytes(&long_bytes).is_err());
+        assert!(Bloom::from_ssz_bytes(&long_bytes).is_err());
     }
 }
