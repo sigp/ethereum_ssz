@@ -125,7 +125,7 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     ///
     /// All bits are initialized to `false`.
     ///
-    /// Returns `None` if `num_bits > N`.
+    /// Returns `Err` if `num_bits > N`.
     pub fn with_capacity(num_bits: usize) -> Result<Self, Error> {
         if num_bits <= N::to_usize() {
             Ok(Self {
