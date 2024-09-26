@@ -125,7 +125,7 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     ///
     /// All bits are initialized to `false`.
     ///
-    /// Returns `None` if `num_bits > N`.
+    /// Returns `Err` if `num_bits > N`.
     pub fn with_capacity(num_bits: usize) -> Result<Self, Error> {
         if num_bits <= N::to_usize() {
             Ok(Self {
@@ -135,7 +135,7 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
             })
         } else {
             Err(Error::OutOfBounds {
-                i: Self::max_len(),
+                i: num_bits,
                 len: Self::max_len(),
             })
         }
@@ -1428,5 +1428,11 @@ mod bitlist {
 
         // Can't extend a BitList to a smaller BitList
         resized_bit_list.resize::<typenum::U16>().unwrap_err();
+    }
+
+    #[test]
+    fn over_capacity_err() {
+        let e = BitList8::with_capacity(9).expect_err("over-sized bit list");
+        assert_eq!(e, Error::OutOfBounds { i: 9, len: 8 });
     }
 }
