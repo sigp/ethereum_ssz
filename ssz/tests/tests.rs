@@ -147,7 +147,7 @@ mod round_trip {
             FixedLen { a: 1, b: 0, c: 1 },
         ];
 
-        let expected_encodings = vec![
+        let expected_encodings = [
             //  | u16--| u64----------------------------| u32----------|
             vec![00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00],
             vec![01, 00, 01, 00, 00, 00, 00, 00, 00, 00, 01, 00, 00, 00],
@@ -265,7 +265,7 @@ mod round_trip {
             },
         ];
 
-        let expected_encodings = vec![
+        let expected_encodings = [
             //   00..................................09
             //  | u16--| vec offset-----| u32------------| vec payload --------|
             vec![00, 00, 10, 00, 00, 00, 00, 00, 00, 00],
@@ -354,9 +354,9 @@ mod round_trip {
             (0, 0),
             (0, 1),
             (1, 0),
-            (u8::max_value(), u16::max_value()),
-            (0, u16::max_value()),
-            (u8::max_value(), 0),
+            (u8::MAX, u16::MAX),
+            (0, u16::MAX),
+            (u8::MAX, 0),
             (42, 12301),
         ];
 
