@@ -20,7 +20,7 @@ pub enum DecodeError {
     ///
     /// - It is `>= bytes.len()`.
     /// - When decoding variable length items, the 1st offset points "backwards" into the fixed
-    /// length items (i.e., `length[0] < BYTES_PER_LENGTH_OFFSET`).
+    ///   length items (i.e., `length[0] < BYTES_PER_LENGTH_OFFSET`).
     /// - When decoding variable-length items, the `n`'th offset was less than the `n-1`'th offset.
     OutOfBoundsByte { i: usize },
     /// An offset points “backwards” into the fixed-bytes portion of the message, essentially
@@ -61,11 +61,11 @@ pub enum DecodeError {
 ///
 /// - `offset`: the offset bytes (e.g., result of `read_offset(..)`).
 /// - `previous_offset`: unless this is the first offset in the SSZ object, the value of the
-/// previously-read offset. Used to ensure offsets are not decreasing.
+///   previously-read offset. Used to ensure offsets are not decreasing.
 /// - `num_bytes`: the total number of bytes in the SSZ object. Used to ensure the offset is not
-/// out of bounds.
+///   out of bounds.
 /// - `num_fixed_bytes`: the number of fixed-bytes in the struct, if it is known. Used to ensure
-/// that the first offset doesn't skip any variable bytes.
+///   that the first offset doesn't skip any variable bytes.
 ///
 /// ## References
 ///

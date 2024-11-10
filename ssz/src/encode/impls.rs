@@ -251,7 +251,7 @@ impl<T: Encode> Encode for Arc<T> {
 }
 
 // Encode transparently through references.
-impl<'a, T: Encode> Encode for &'a T {
+impl<T: Encode> Encode for &T {
     fn is_ssz_fixed_len() -> bool {
         T::is_ssz_fixed_len()
     }

@@ -53,9 +53,9 @@ pub use union_selector::UnionSelector;
 pub const BYTES_PER_LENGTH_OFFSET: usize = 4;
 /// The maximum value that can be represented using `BYTES_PER_LENGTH_OFFSET`.
 #[cfg(target_pointer_width = "32")]
-pub const MAX_LENGTH_VALUE: usize = (std::u32::MAX >> (8 * (4 - BYTES_PER_LENGTH_OFFSET))) as usize;
+pub const MAX_LENGTH_VALUE: usize = (u32::MAX >> (8 * (4 - BYTES_PER_LENGTH_OFFSET))) as usize;
 #[cfg(target_pointer_width = "64")]
-pub const MAX_LENGTH_VALUE: usize = (std::u64::MAX >> (8 * (8 - BYTES_PER_LENGTH_OFFSET))) as usize;
+pub const MAX_LENGTH_VALUE: usize = (u64::MAX >> (8 * (8 - BYTES_PER_LENGTH_OFFSET))) as usize;
 
 /// The number of bytes used to indicate the variant of a union.
 pub const BYTES_PER_UNION_SELECTOR: usize = 1;
