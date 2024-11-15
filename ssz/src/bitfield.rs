@@ -1,6 +1,5 @@
 use crate::{Decode, DecodeError, Encode};
 use core::marker::PhantomData;
-use derivative::Derivative;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
 use serde_utils::hex::{encode as hex_encode, PrefixedHexVisitor};
@@ -111,8 +110,7 @@ pub type BitVector<N> = Bitfield<Fixed<N>>;
 /// The internal representation of the bitfield is the same as that required by SSZ. The lowest
 /// byte (by `Vec` index) stores the lowest bit-indices and the right-most bit stores the lowest
 /// bit-index. E.g., `smallvec![0b0000_0001, 0b0000_0010]` has bits `0, 9` set.
-#[derive(Clone, Debug, Derivative)]
-#[derivative(PartialEq, Eq, Hash(bound = ""))]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Bitfield<T> {
     bytes: SmallVec<[u8; SMALLVEC_LEN]>,
     len: usize,
