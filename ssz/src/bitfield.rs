@@ -438,7 +438,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
     ///
     /// - `bytes` is not the minimal required bytes to represent a bitfield of `bit_len` bits.
     /// - `bit_len` is not a multiple of 8 and `bytes` contains set bits that are higher than, or
-    /// equal to `bit_len`.
+    ///   equal to `bit_len`.
     fn from_raw_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, bit_len: usize) -> Result<Self, Error> {
         if bit_len == 0 {
             if bytes.len() == 1 && bytes[0] == 0 {
@@ -459,7 +459,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
             })
         } else {
             // Ensure there are no bits higher than `bit_len` that are set to true.
-            let (mask, _) = u8::max_value().overflowing_shr(8 - (bit_len as u32 % 8));
+            let (mask, _) = u8::MAX.overflowing_shr(8 - (bit_len as u32 % 8));
 
             if (bytes.last().expect("Guarded against empty bytes") & !mask) == 0 {
                 Ok(Self {
@@ -573,7 +573,7 @@ pub struct BitIter<'a, T> {
     i: usize,
 }
 
-impl<'a, T: BitfieldBehaviour> Iterator for BitIter<'a, T> {
+impl<T: BitfieldBehaviour> Iterator for BitIter<'_, T> {
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -693,7 +693,7 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Fixed<N>> {
         let size = N::to_usize();
         let mut vec = smallvec![0u8; size];
         u.fill_buffer(&mut vec)?;
-        Ok(Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)?)
+        Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
 }
 
@@ -705,7 +705,7 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Variable<N>> {
         let size = std::cmp::min(rand, max_size);
         let mut vec = smallvec![0u8; size];
         u.fill_buffer(&mut vec)?;
-        Ok(Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)?)
+        Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
 }
 
