@@ -110,7 +110,7 @@ pub type BitVector<N> = Bitfield<Fixed<N>>;
 /// The internal representation of the bitfield is the same as that required by SSZ. The lowest
 /// byte (by `Vec` index) stores the lowest bit-indices and the right-most bit stores the lowest
 /// bit-index. E.g., `smallvec![0b0000_0001, 0b0000_0010]` has bits `0, 9` set.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct Bitfield<T> {
     bytes: SmallVec<[u8; SMALLVEC_LEN]>,
     len: usize,
@@ -541,6 +541,22 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
                 len: self.len(),
             })
         }
+    }
+}
+
+impl<T> Eq for Bitfield<T> {}
+impl<T> PartialEq for Bitfield<T> {
+    #[inline]
+    fn eq(&self, other: &Bitfield<T>) -> bool {
+        self.len == other.len && self.bytes == other.bytes
+    }
+}
+
+impl<T> core::hash::Hash for Bitfield<T> {
+    #[inline]
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::hash::Hash::hash(&self.bytes, state);
+        core::hash::Hash::hash(&self.len, state);
     }
 }
 
