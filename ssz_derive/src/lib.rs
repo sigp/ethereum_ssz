@@ -823,7 +823,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
         fixed_decodes.push(quote! {
             let (slice, bytes) = bytes
                 .split_at_checked(#ssz_fixed_len)
-                .ok_or_else(|| ssz::DecodeError::InvalidByteLength {
+                .ok_or(ssz::DecodeError::InvalidByteLength {
                     len: bytes.len(),
                     expected: #ssz_fixed_len
                 })?;
