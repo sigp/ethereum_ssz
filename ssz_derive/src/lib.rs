@@ -805,7 +805,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                 builder.register_type_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
             });
             decodes.push(quote! {
-                let #ident = decoder.decode_next_with(|slice| #module::from_ssz_bytes(slice))?;
+                let #ident = decoder.decode_last_parameterized(#is_ssz_fixed_len, #ssz_fixed_len, |slice| #module::from_ssz_bytes(slice))?;
             });
         } else {
             is_ssz_fixed_len = quote! { <#ty as ssz::Decode>::is_ssz_fixed_len() };
@@ -816,7 +816,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                 builder.register_type::<#ty>()?;
             });
             decodes.push(quote! {
-                let #ident = decoder.decode_next()?;
+                let #ident = decoder.decode_last()?;
             });
         }
 
@@ -839,6 +839,8 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
         is_fixed_lens.push(is_ssz_fixed_len);
         fixed_lens.push(ssz_fixed_len);
     }
+
+    let decodes: Vec<_> = decodes.into_iter().rev().collect();
 
     let output = quote! {
         impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
@@ -885,7 +887,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                         )*
                     })
                 } else {
-                    let mut builder = ssz::SszDecoderBuilder::new(bytes);
+                    let mut builder = ssz::ReverseSszDecoderBuilder::new(bytes);
 
                     #(
                         #register_types

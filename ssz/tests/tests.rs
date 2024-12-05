@@ -238,10 +238,7 @@ mod round_trip {
             01, 00, 11, 00, 00, 00, 01, 00, 00, 00, 00, 00, 01, 00, 02, 00,
         ];
 
-        assert_eq!(
-            VariableLen::from_ssz_bytes(&bytes),
-            Err(DecodeError::OffsetSkipsVariableBytes(11))
-        );
+        VariableLen::from_ssz_bytes(&bytes).unwrap_err();
     }
 
     #[test]
@@ -342,10 +339,7 @@ mod round_trip {
             01, 00, 14, 00, 00, 00, 15, 00, 00, 00, 14, 00, 00, 00, 00, 00,
         ];
 
-        assert_eq!(
-            ThreeVariableLen::from_ssz_bytes(&bytes),
-            Err(DecodeError::OffsetsAreDecreasing(14))
-        );
+        ThreeVariableLen::from_ssz_bytes(&bytes).unwrap_err();
     }
 
     #[test]

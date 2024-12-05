@@ -2,9 +2,12 @@ use super::*;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::Ordering;
 
+pub use reverse_ssz_decoder::{ReverseSszDecoder, ReverseSszDecoderBuilder};
+
 type SmallVec8<T> = SmallVec<[T; 8]>;
 
 pub mod impls;
+mod reverse_ssz_decoder;
 pub mod try_from_iter;
 
 /// Returned when SSZ decoding fails.
@@ -53,6 +56,12 @@ pub enum DecodeError {
     UnionSelectorInvalid(u8),
     /// The given bytes could not be successfully decoded into any variant of the transparent enum.
     NoMatchingVariant,
+    /// There are still fixed bytes left after decoding.
+    ExcessFixedBytes(usize),
+    /// There are still variable bytes left after decoding.
+    ExcessVariableBytes(usize),
+    /// Addition of fixed byte lengths resulted in an overflow
+    FixedBytesOverflow,
 }
 
 /// Performs checks on the `offset` based upon the other parameters provided.
