@@ -821,20 +821,8 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
         }
 
         fixed_decodes.push(quote! {
-            let #ident = {
-                start = end;
-                end = end
-                    .checked_add(#ssz_fixed_len)
-                    .ok_or_else(|| ssz::DecodeError::OutOfBoundsByte {
-                        i: usize::max_value()
-                    })?;
-                let slice = bytes.get(start..end)
-                    .ok_or_else(|| ssz::DecodeError::InvalidByteLength {
-                        len: bytes.len(),
-                        expected: end
-                    })?;
-                #from_ssz_bytes?
-            };
+            let (slice, bytes) = bytes.split_at(#ssz_fixed_len);
+            let #ident = #from_ssz_bytes?;
         });
         is_fixed_lens.push(is_ssz_fixed_len);
         fixed_lens.push(ssz_fixed_len);
@@ -871,9 +859,6 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                             expected: <Self as ssz::Decode>::ssz_fixed_len(),
                         });
                     }
-
-                    let mut start: usize = 0;
-                    let mut end = start;
 
                     #(
                         #fixed_decodes
