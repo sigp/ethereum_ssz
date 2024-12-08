@@ -759,7 +759,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
     let name = &item.ident;
     let (impl_generics, ty_generics, where_clause) = &item.generics.split_for_impl();
 
-    let mut register_types = vec![];
+    let mut register_fields = vec![];
     let mut field_names = vec![];
     let mut fixed_decodes = vec![];
     let mut decodes = vec![];
@@ -801,8 +801,8 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
             ssz_fixed_len = quote! { #module::ssz_fixed_len() };
             from_ssz_bytes = quote! { #module::from_ssz_bytes(slice) };
 
-            register_types.push(quote! {
-                builder.register_type_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
+            register_fields.push(quote! {
+                builder.register_field_parameterized(#is_ssz_fixed_len, #ssz_fixed_len)?;
             });
             decodes.push(quote! {
                 let #ident = decoder.decode_last_parameterized(#is_ssz_fixed_len, #ssz_fixed_len, |slice| #module::from_ssz_bytes(slice))?;
@@ -812,8 +812,8 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
             ssz_fixed_len = quote! { <#ty as ssz::Decode>::ssz_fixed_len() };
             from_ssz_bytes = quote! { <#ty as ssz::Decode>::from_ssz_bytes(slice) };
 
-            register_types.push(quote! {
-                builder.register_type::<#ty>()?;
+            register_fieldns.push(quote! {
+                builder.register_field::<#ty>()?;
             });
             decodes.push(quote! {
                 let #ident = decoder.decode_last()?;
@@ -875,7 +875,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                     let mut builder = ssz::ReverseSszDecoderBuilder::new(bytes);
 
                     #(
-                        #register_types
+                        #register_fields
                     )*
 
                     let mut decoder = builder.build()?;
