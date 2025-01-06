@@ -22,5 +22,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Publish derive crate
         run: cargo publish -p ethereum_ssz_derive
+      # `ethereum_ssz` depends on `ethereum_ssz_derive` to publish, so sleep a
+      # bit to give crates.io some time to update.
+      - name: Sleep for 3 minutes
+        run: sleep 180s
+        shell: bash
       - name: Publish main crate
         run: cargo publish -p ethereum_ssz
