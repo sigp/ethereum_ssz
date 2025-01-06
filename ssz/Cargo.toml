@@ -1,6 +1,6 @@
 [package]
 name = "ethereum_ssz"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 description = "SimpleSerialize (SSZ) as used in Ethereum"
 license = "Apache-2.0"
@@ -15,7 +15,7 @@ name = "ssz"
 
 [dev-dependencies]
 alloy-primitives = { version = "0.8.0", features = ["getrandom"] }
-ethereum_ssz_derive = { version = "0.8.1", path = "../ssz_derive" }
+ethereum_ssz_derive = { version = "0.8.2", path = "../ssz_derive" }
 
 [dependencies]
 alloy-primitives = "0.8.0"
