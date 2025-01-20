@@ -395,71 +395,67 @@ impl Decode for U128 {
     }
 }
 
-macro_rules! impl_decodable_for_u8_array {
-    ($len: expr) => {
-        impl Decode for [u8; $len] {
-            fn is_ssz_fixed_len() -> bool {
-                true
-            }
+impl<const N: usize> Decode for [u8; N] {
+    fn is_ssz_fixed_len() -> bool {
+        true
+    }
 
-            fn ssz_fixed_len() -> usize {
-                $len
-            }
+    fn ssz_fixed_len() -> usize {
+        N
+    }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-                let len = bytes.len();
-                let expected = <Self as Decode>::ssz_fixed_len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
+        let expected = <Self as Decode>::ssz_fixed_len();
 
-                if len != expected {
-                    Err(DecodeError::InvalidByteLength { len, expected })
-                } else {
-                    let mut array: [u8; $len] = [0; $len];
-                    array.copy_from_slice(bytes);
+        if len != expected {
+            Err(DecodeError::InvalidByteLength { len, expected })
+        } else {
+            let mut array: [u8; N] = [0; N];
+            array.copy_from_slice(bytes);
 
-                    Ok(array)
-                }
-            }
+            Ok(array)
         }
-    };
+    }
 }
 
-impl_decodable_for_u8_array!(4);
-impl_decodable_for_u8_array!(32);
-impl_decodable_for_u8_array!(48);
+impl<T: Decode> Decode for Vec<T> {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
 
-macro_rules! impl_for_vec {
-    ($type: ty, $max_len: expr) => {
-        impl<T: Decode> Decode for $type {
-            fn is_ssz_fixed_len() -> bool {
-                false
-            }
-
-            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
-                if bytes.is_empty() {
-                    Ok(Self::from_iter(iter::empty()))
-                } else if T::is_ssz_fixed_len() {
-                    bytes
-                        .chunks(T::ssz_fixed_len())
-                        .map(T::from_ssz_bytes)
-                        .collect()
-                } else {
-                    decode_list_of_variable_length_items(bytes, $max_len)
-                }
-            }
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
+            Ok(vec![])
+        } else if T::is_ssz_fixed_len() {
+            bytes
+                .chunks(T::ssz_fixed_len())
+                .map(T::from_ssz_bytes)
+                .collect()
+        } else {
+            decode_list_of_variable_length_items(bytes, None)
         }
-    };
+    }
 }
 
-impl_for_vec!(Vec<T>, None);
-impl_for_vec!(SmallVec<[T; 1]>, None);
-impl_for_vec!(SmallVec<[T; 2]>, None);
-impl_for_vec!(SmallVec<[T; 3]>, None);
-impl_for_vec!(SmallVec<[T; 4]>, None);
-impl_for_vec!(SmallVec<[T; 5]>, None);
-impl_for_vec!(SmallVec<[T; 6]>, None);
-impl_for_vec!(SmallVec<[T; 7]>, None);
-impl_for_vec!(SmallVec<[T; 8]>, None);
-impl_for_vec!(SmallVec<[T; 96]>, None);
+impl<T: Decode, const N: usize> Decode for SmallVec<[T; N]> {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
+            Ok(SmallVec::new())
+        } else if T::is_ssz_fixed_len() {
+            bytes
+                .chunks(T::ssz_fixed_len())
+                .map(T::from_ssz_bytes)
+                .collect()
+        } else {
+            decode_list_of_variable_length_items(bytes, None)
+        }
+    }
+}
 
 impl<K, V> Decode for BTreeMap<K, V>
 where

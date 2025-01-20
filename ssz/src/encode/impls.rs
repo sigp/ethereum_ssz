@@ -309,34 +309,33 @@ where
     }
 }
 
-macro_rules! impl_for_vec {
-    ($type: ty) => {
-        impl<T: Encode> Encode for $type {
-            fn is_ssz_fixed_len() -> bool {
-                false
-            }
+impl<T: Encode> Encode for Vec<T> {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
 
-            fn ssz_bytes_len(&self) -> usize {
-                sequence_ssz_bytes_len(self.iter())
-            }
+    fn ssz_bytes_len(&self) -> usize {
+        sequence_ssz_bytes_len(self.iter())
+    }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
-                sequence_ssz_append(self.iter(), buf)
-            }
-        }
-    };
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        sequence_ssz_append(self.iter(), buf)
+    }
 }
 
-impl_for_vec!(Vec<T>);
-impl_for_vec!(SmallVec<[T; 1]>);
-impl_for_vec!(SmallVec<[T; 2]>);
-impl_for_vec!(SmallVec<[T; 3]>);
-impl_for_vec!(SmallVec<[T; 4]>);
-impl_for_vec!(SmallVec<[T; 5]>);
-impl_for_vec!(SmallVec<[T; 6]>);
-impl_for_vec!(SmallVec<[T; 7]>);
-impl_for_vec!(SmallVec<[T; 8]>);
-impl_for_vec!(SmallVec<[T; 96]>);
+impl<T: Encode, const N: usize> Encode for SmallVec<[T; N]> {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn ssz_bytes_len(&self) -> usize {
+        sequence_ssz_bytes_len(self.iter())
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        sequence_ssz_append(self.iter(), buf)
+    }
+}
 
 impl<K, V> Encode for BTreeMap<K, V>
 where
@@ -539,31 +538,23 @@ impl Encode for U128 {
     }
 }
 
-macro_rules! impl_encodable_for_u8_array {
-    ($len: expr) => {
-        impl Encode for [u8; $len] {
-            fn is_ssz_fixed_len() -> bool {
-                true
-            }
+impl<const N: usize> Encode for [u8; N] {
+    fn is_ssz_fixed_len() -> bool {
+        true
+    }
 
-            fn ssz_fixed_len() -> usize {
-                $len
-            }
+    fn ssz_fixed_len() -> usize {
+        N
+    }
 
-            fn ssz_bytes_len(&self) -> usize {
-                $len
-            }
+    fn ssz_bytes_len(&self) -> usize {
+        N
+    }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
-                buf.extend_from_slice(&self[..]);
-            }
-        }
-    };
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self[..]);
+    }
 }
-
-impl_encodable_for_u8_array!(4);
-impl_encodable_for_u8_array!(32);
-impl_encodable_for_u8_array!(48);
 
 #[cfg(test)]
 mod tests {
