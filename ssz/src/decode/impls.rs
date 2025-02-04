@@ -526,7 +526,7 @@ pub fn decode_list_of_variable_length_items<T: Decode, Container: TryFromIter<T>
 
     let num_items = first_offset / BYTES_PER_LENGTH_OFFSET;
 
-    if max_len.map_or(false, |max| num_items > max) {
+    if max_len.is_some_and(|max| num_items > max) {
         return Err(DecodeError::BytesInvalid(format!(
             "Variable length list of {} items exceeds maximum of {:?}",
             num_items, max_len

@@ -14,11 +14,20 @@ jobs:
     name: cargo-fmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Get latest version of stable Rust
       run: rustup update stable
     - name: Check formatting with cargo fmt
       run: cargo fmt --all -- --check
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Get latest version of stable Rust
+      run: rustup update stable
+    - name: Lint code for quality and style with Clippy
+      run: cargo clippy --all
   test:
     strategy:
       matrix:
@@ -26,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: test-${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Get latest version of stable Rust
       run: rustup update stable
     - name: Run tests
@@ -37,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo-tarpaulin
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Get latest version of stable Rust
       run: rustup update stable
     - name: Install cargo-tarpaulin

@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
-//! Provides procedural derive macros for the `Encode` and `Decode` traits of the `eth2_ssz` crate.
+//! Provides procedural derive macros for the `Encode` and `Decode` traits of the `ethereum_ssz`
+//! crate.
 //!
 //! ## Attributes
 //!
@@ -288,11 +289,7 @@ fn parse_ssz_fields(
             let field_opts_candidates = field
                 .attrs
                 .iter()
-                .filter(|attr| {
-                    attr.path()
-                        .get_ident()
-                        .map_or(false, |ident| *ident == "ssz")
-                })
+                .filter(|attr| attr.path().get_ident().is_some_and(|ident| *ident == "ssz"))
                 .collect::<Vec<_>>();
 
             if field_opts_candidates.len() > 1 {
@@ -753,8 +750,8 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
 /// ## Field attributes
 ///
 /// - `#[ssz(skip_deserializing)]`: during de-serialization the field will be instantiated from a
-/// `Default` implementation. The decoder will assume that the field was not serialized at all
-/// (e.g., if it has been serialized, an error will be raised instead of `Default` overriding it).
+///   `Default` implementation. The decoder will assume that the field was not serialized at all
+///   (e.g., if it has been serialized, an error will be raised instead of `Default` overriding it).
 fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> TokenStream {
     let name = &item.ident;
     let (impl_generics, ty_generics, where_clause) = &item.generics.split_for_impl();
@@ -903,8 +900,8 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
 /// ## Field attributes
 ///
 /// - `#[ssz(skip_deserializing)]`: during de-serialization the field will be instantiated from a
-/// `Default` implementation. The decoder will assume that the field was not serialized at all
-/// (e.g., if it has been serialized, an error will be raised instead of `Default` overriding it).
+///   `Default` implementation. The decoder will assume that the field was not serialized at all
+///   (e.g., if it has been serialized, an error will be raised instead of `Default` overriding it).
 fn ssz_decode_derive_struct_transparent(
     item: &DeriveInput,
     struct_data: &DataStruct,
