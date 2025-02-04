@@ -26,21 +26,21 @@ pub enum DecodeError {
     /// An offset points “backwards” into the fixed-bytes portion of the message, essentially
     /// double-decoding bytes that will also be decoded as fixed-length.
     ///
-    /// https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#1-Offset-into-fixed-portion
+    /// <https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#1-Offset-into-fixed-portion>
     OffsetIntoFixedPortion(usize),
     /// The first offset does not point to the byte that follows the fixed byte portion,
     /// essentially skipping a variable-length byte.
     ///
-    /// https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#2-Skip-first-variable-byte
+    /// <https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#2-Skip-first-variable-byte>
     OffsetSkipsVariableBytes(usize),
     /// An offset points to bytes prior to the previous offset. Depending on how you look at it,
     /// this either double-decodes bytes or makes the first offset a negative-length.
     ///
-    /// https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#3-Offsets-are-decreasing
+    /// <https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#3-Offsets-are-decreasing>
     OffsetsAreDecreasing(usize),
     /// An offset references byte indices that do not exist in the source bytes.
     ///
-    /// https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#4-Offsets-are-out-of-bounds
+    /// <https://notes.ethereum.org/ruKvDXl6QOW3gnqVYb8ezA?view#4-Offsets-are-out-of-bounds>
     OffsetOutOfBounds(usize),
     /// A variable-length list does not have a fixed portion that is cleanly divisible by
     /// `BYTES_PER_LENGTH_OFFSET`.
@@ -78,15 +78,15 @@ pub fn sanitize_offset(
     num_bytes: usize,
     num_fixed_bytes: Option<usize>,
 ) -> Result<usize, DecodeError> {
-    if num_fixed_bytes.map_or(false, |fixed_bytes| offset < fixed_bytes) {
+    if num_fixed_bytes.is_some_and(|fixed_bytes| offset < fixed_bytes) {
         Err(DecodeError::OffsetIntoFixedPortion(offset))
     } else if previous_offset.is_none()
-        && num_fixed_bytes.map_or(false, |fixed_bytes| offset != fixed_bytes)
+        && num_fixed_bytes.is_some_and(|fixed_bytes| offset != fixed_bytes)
     {
         Err(DecodeError::OffsetSkipsVariableBytes(offset))
     } else if offset > num_bytes {
         Err(DecodeError::OffsetOutOfBounds(offset))
-    } else if previous_offset.map_or(false, |prev| prev > offset) {
+    } else if previous_offset.is_some_and(|prev| prev > offset) {
         Err(DecodeError::OffsetsAreDecreasing(offset))
     } else {
         Ok(offset)
