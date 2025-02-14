@@ -35,6 +35,7 @@
 //! See `examples/` for manual implementations of the `Encode` and `Decode` traits.
 
 mod bitfield;
+mod bitvector_dynamic;
 mod decode;
 mod encode;
 pub mod legacy;
@@ -42,6 +43,7 @@ mod union_selector;
 
 #[doc(hidden)]
 pub use bitfield::{BitList, BitVector, Bitfield, Error as BitfieldError, Fixed, Variable};
+pub use bitvector_dynamic::{BitVectorDynamic, Dynamic};
 pub use decode::{
     impls::decode_list_of_variable_length_items, read_offset, split_union_bytes,
     try_from_iter::TryFromIter, Decode, DecodeError, SszDecoder, SszDecoderBuilder,

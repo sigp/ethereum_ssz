@@ -61,7 +61,7 @@ pub type BitList<N> = Bitfield<Variable<N>>;
 /// See [Bitfield](struct.Bitfield.html) documentation.
 pub type BitVector<N> = Bitfield<Fixed<N>>;
 
-/// A heap-allocated, ordered, fixed-length, collection of `bool` values. Use of
+/// A heap-allocated, ordered, fixed-length collection of `bool` values. Use of
 /// [`BitList`](type.BitList.html) or [`BitVector`](type.BitVector.html) type aliases is preferred
 /// over direct use of this struct.
 ///
@@ -113,9 +113,9 @@ pub type BitVector<N> = Bitfield<Fixed<N>>;
 /// bit-index. E.g., `smallvec![0b0000_0001, 0b0000_0010]` has bits `0, 9` set.
 #[derive(Clone, Debug)]
 pub struct Bitfield<T> {
-    bytes: SmallVec<[u8; SMALLVEC_LEN]>,
-    len: usize,
-    _phantom: PhantomData<T>,
+    pub(crate) bytes: SmallVec<[u8; SMALLVEC_LEN]>,
+    pub(crate) len: usize,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
@@ -440,7 +440,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
     /// - `bytes` is not the minimal required bytes to represent a bitfield of `bit_len` bits.
     /// - `bit_len` is not a multiple of 8 and `bytes` contains set bits that are higher than, or
     ///   equal to `bit_len`.
-    fn from_raw_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, bit_len: usize) -> Result<Self, Error> {
+    pub fn from_raw_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, bit_len: usize) -> Result<Self, Error> {
         if bit_len == 0 {
             if bytes.len() == 1 && bytes[0] == 0 {
                 // A bitfield with `bit_len` 0 can only be represented by a single zero byte.
@@ -564,8 +564,8 @@ impl<T> core::hash::Hash for Bitfield<T> {
 /// Returns the minimum required bytes to represent a given number of bits.
 ///
 /// `bit_len == 0` requires a single byte.
-fn bytes_for_bit_len(bit_len: usize) -> usize {
-    std::cmp::max(1, (bit_len + 7) / 8)
+pub(crate) fn bytes_for_bit_len(bits: usize) -> usize {
+    (bits + 7) / 8
 }
 
 /// An iterator over the bits in a `Bitfield`.
