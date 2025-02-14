@@ -23,7 +23,7 @@ impl Bitfield<Dynamic> {
     /// Create a new dynamic bitfield with the given length (all bits false).
     /// Length must be a multiple of 8 bits and greater than 0.
     pub fn new(len: usize) -> Result<Self, Error> {
-        if len <= 0 {
+        if len == 0 {
             return Err(Error::InvalidByteCount {
                 given: len,
                 expected: 8,
@@ -78,7 +78,6 @@ impl Bitfield<Dynamic> {
         }
         result
     }
-    
 }
 
 impl Encode for Bitfield<Dynamic> {
@@ -350,12 +349,15 @@ mod dynamic_bitfield_tests {
         original.set(15, true)?;
 
         let bytes = original.clone().into_bytes();
-        
+
         // Both methods should produce equivalent results
         let from_bytes = BitVectorDynamic::from_bytes(bytes.clone(), 16)?;
-        let from_ssz = BitVectorDynamic::from_ssz_bytes(&bytes)
-            .map_err(|_| Error::InvalidByteCount { given: 0, expected: 1 })?;
-        
+        let from_ssz =
+            BitVectorDynamic::from_ssz_bytes(&bytes).map_err(|_| Error::InvalidByteCount {
+                given: 0,
+                expected: 1,
+            })?;
+
         assert_eq!(from_bytes, from_ssz);
         assert_eq!(from_bytes, original);
 
@@ -365,8 +367,8 @@ mod dynamic_bitfield_tests {
     #[test]
     fn test_from_bytes_length_validation() {
         // Create bytes representing a 32-bit field
-        let bytes = smallvec![0b1111_1111; 4];  // 32 bits set
-        
+        let bytes = smallvec![0b1111_1111; 4]; // 32 bits set
+
         // Trying to decode as 16 bits should fail
         assert!(matches!(
             BitVectorDynamic::from_bytes(bytes.clone(), 16),

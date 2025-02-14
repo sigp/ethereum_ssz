@@ -40,9 +40,9 @@ mod encode;
 pub mod legacy;
 mod union_selector;
 
+pub use bitfield::bitvector_dynamic::{BitVectorDynamic, Dynamic};
 #[doc(hidden)]
 pub use bitfield::{BitList, BitVector, Bitfield, Error as BitfieldError, Fixed, Variable};
-pub use bitfield::bitvector_dynamic::{BitVectorDynamic, Dynamic};
 pub use decode::{
     impls::decode_list_of_variable_length_items, read_offset, split_union_bytes,
     try_from_iter::TryFromIter, Decode, DecodeError, SszDecoder, SszDecoderBuilder,
