@@ -42,9 +42,7 @@ impl Bitfield<Dynamic> {
         })
     }
 
-    /// Serialize the dynamic bitfield using SSZ.
-    ///
-    /// For BitfieldDyn, we simply return the underlying bytes.
+    /// Serialize the dynamic bitfield using SSZ
     pub fn into_bytes(self) -> SmallVec<[u8; SMALLVEC_LEN]> {
         self.into_raw_bytes()
     }
@@ -63,7 +61,7 @@ impl Bitfield<Dynamic> {
         Self::from_raw_bytes(bytes, len)
     }
 
-    /// Compute the intersection of two dynamic bitfields.
+    /// Compute the intersection of two bitfields.
     pub fn intersection(&self, other: &Self) -> Self {
         let min_len = std::cmp::min(self.len(), other.len());
         let mut result = Self::new(min_len).unwrap();
@@ -72,6 +70,8 @@ impl Bitfield<Dynamic> {
         }
         result
     }
+
+    /// Compute the union of two bitfields.
     pub fn union(&self, other: &Self) -> Self {
         let max_len = std::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len).unwrap();
@@ -109,7 +109,7 @@ impl Decode for Bitfield<Dynamic> {
 
         let len = bytes.len() * 8;
         Self::from_bytes(bytes.to_smallvec(), len).map_err(|e| {
-            DecodeError::BytesInvalid(format!("BitfieldDyn failed to decode: {:?}", e))
+            DecodeError::BytesInvalid(format!("BitVectorDynamic failed to decode: {:?}", e))
         })
     }
 }
@@ -130,7 +130,7 @@ impl<'de> Deserialize<'de> for Bitfield<Dynamic> {
     {
         let bytes = deserializer.deserialize_str(PrefixedHexVisitor)?;
         Self::from_ssz_bytes(&bytes)
-            .map_err(|e| serde::de::Error::custom(format!("DynamicBitfield {:?}", e)))
+            .map_err(|e| serde::de::Error::custom(format!("BitVectorDynamic {:?}", e)))
     }
 }
 
@@ -303,8 +303,49 @@ mod dynamic_bitfield_tests {
 
         Ok(())
     }
-}
 
+ #[test]
+    fn test_non_byte_aligned_lengths() {
+        // Zero bits should error
+        assert!(BitVectorDynamic::new(0).is_err());
+
+        // 1 bit should error
+        assert!(BitVectorDynamic::new(1).is_err());
+
+        // 7 bits should error
+        assert!(BitVectorDynamic::new(7).is_err());
+
+        // 8 bits should succeed
+        assert!(BitVectorDynamic::new(8).is_ok());
+
+        // 9 bits should error
+        assert!(BitVectorDynamic::new(9).is_err());
+    }
+
+    #[test]
+    fn test_encode_decode() -> Result<(), Error> {
+        let mut bitfield = BitVectorDynamic::new(32)?;
+        bitfield.set(0, true)?;
+        bitfield.set(16, true)?;
+        bitfield.set(31, true)?;
+
+        let expected: SmallVec<[u8; 4]> = smallvec![
+            0b0000_0001, 
+            0b0000_0000, 
+            0b0000_0001, 
+            0b1000_0000
+        ];
+        let bytes = bitfield.clone().into_bytes();
+        assert_eq!(bytes, expected);
+
+        let encoded = bitfield.as_ssz_bytes();
+        let decoded = BitVectorDynamic::from_ssz_bytes(&encoded).unwrap().into_bytes();
+        
+        assert_eq!(bytes, decoded);
+
+        Ok(())
+    }
+}
 #[cfg(test)]
 mod roundtrip_tests {
     use super::*;
@@ -319,7 +360,7 @@ mod roundtrip_tests {
     }
 
     #[test]
-    fn bitdyn_ssz_round_trip_large() -> Result<(), Error> {
+    fn bitdyn_ssz_round_trip() -> Result<(), Error> {
         // length = 8, set even bits
         let mut b = BitVectorDynamic::new(8).unwrap();
         for j in 0..8 {
@@ -340,20 +381,43 @@ mod roundtrip_tests {
     }
 
     #[test]
-    fn test_non_byte_aligned_lengths() {
-        // Zero bits should error
-        assert!(BitVectorDynamic::new(0).is_err());
+fn test_ssz_roundtrip_various_sizes() -> Result<(), Error> {
+    // Test empty vector (8 bits)
+    let empty = BitVectorDynamic::new(8)?;
+    assert_round_trip_bitdyn(empty)?;
 
-        // 1 bit should error
-        assert!(BitVectorDynamic::new(1).is_err());
+    // Test partially filled vector (16 bits)
+    let mut partial = BitVectorDynamic::new(16)?;
+    partial.set(0, true)?;
+    partial.set(8, true)?;
+    partial.set(15, true)?;
+    assert_round_trip_bitdyn(partial)?;
 
-        // 7 bits should error
-        assert!(BitVectorDynamic::new(7).is_err());
-
-        // 8 bits should succeed
-        assert!(BitVectorDynamic::new(8).is_ok());
-
-        // 9 bits should error
-        assert!(BitVectorDynamic::new(9).is_err());
+    // Test fully filled vector (24 bits)
+    let mut full = BitVectorDynamic::new(24)?;
+    for i in 0..24 {
+        full.set(i, true)?;
     }
+    assert_round_trip_bitdyn(full)?;
+
+    // Test alternating pattern (32 bits)
+    let mut alternating = BitVectorDynamic::new(32)?;
+    for i in 0..32 {
+        alternating.set(i, i % 2 == 0)?;
+    }
+    assert_round_trip_bitdyn(alternating)?;
+
+    // Test fully filled vector (128 bits)
+    let mut full = BitVectorDynamic::new(128)?;
+    for i in 0..128 {
+        full.set(i, true)?;
+    }
+    assert_round_trip_bitdyn(full)?;
+
+    Ok(())
+}
+
+
+
+   
 }
