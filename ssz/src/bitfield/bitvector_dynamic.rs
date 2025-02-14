@@ -10,7 +10,7 @@ use serde::ser::{Serialize, Serializer};
 use serde_utils::hex::{encode as hex_encode, PrefixedHexVisitor};
 use smallvec::{smallvec, SmallVec, ToSmallVec};
 
-/// A marker struct used to declare dynamic length behaviour on a `Bitfield`.
+/// A marker struct used to declare dynamic length behaviour on a Bitfield.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Dynamic;
 
@@ -42,15 +42,11 @@ impl Bitfield<Dynamic> {
         })
     }
 
-    /// Serialize the dynamic bitfield using SSZ
     pub fn into_bytes(self) -> SmallVec<[u8; SMALLVEC_LEN]> {
         self.into_raw_bytes()
     }
 
     /// Create a dynamic bitfield from raw bytes and a declared logical length.
-    ///
-    /// For a well–formed BitfieldDyn in memory the declared length must equal the full capacity
-    /// of the bytes (i.e. `bytes.len() * 8`).
     pub fn from_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, len: usize) -> Result<Self, Error> {
         if len != bytes.len() * 8 {
             return Err(Error::InvalidByteCount {
@@ -304,7 +300,7 @@ mod dynamic_bitfield_tests {
         Ok(())
     }
 
- #[test]
+    #[test]
     fn test_non_byte_aligned_lengths() {
         // Zero bits should error
         assert!(BitVectorDynamic::new(0).is_err());
@@ -329,18 +325,16 @@ mod dynamic_bitfield_tests {
         bitfield.set(16, true)?;
         bitfield.set(31, true)?;
 
-        let expected: SmallVec<[u8; 4]> = smallvec![
-            0b0000_0001, 
-            0b0000_0000, 
-            0b0000_0001, 
-            0b1000_0000
-        ];
+        let expected: SmallVec<[u8; 4]> =
+            smallvec![0b0000_0001, 0b0000_0000, 0b0000_0001, 0b1000_0000];
         let bytes = bitfield.clone().into_bytes();
         assert_eq!(bytes, expected);
 
         let encoded = bitfield.as_ssz_bytes();
-        let decoded = BitVectorDynamic::from_ssz_bytes(&encoded).unwrap().into_bytes();
-        
+        let decoded = BitVectorDynamic::from_ssz_bytes(&encoded)
+            .unwrap()
+            .into_bytes();
+
         assert_eq!(bytes, decoded);
 
         Ok(())
@@ -381,43 +375,39 @@ mod roundtrip_tests {
     }
 
     #[test]
-fn test_ssz_roundtrip_various_sizes() -> Result<(), Error> {
-    // Test empty vector (8 bits)
-    let empty = BitVectorDynamic::new(8)?;
-    assert_round_trip_bitdyn(empty)?;
+    fn test_ssz_roundtrip_various_sizes() -> Result<(), Error> {
+        // Test empty vector (8 bits)
+        let empty = BitVectorDynamic::new(8)?;
+        assert_round_trip_bitdyn(empty)?;
 
-    // Test partially filled vector (16 bits)
-    let mut partial = BitVectorDynamic::new(16)?;
-    partial.set(0, true)?;
-    partial.set(8, true)?;
-    partial.set(15, true)?;
-    assert_round_trip_bitdyn(partial)?;
+        // Test partially filled vector (16 bits)
+        let mut partial = BitVectorDynamic::new(16)?;
+        partial.set(0, true)?;
+        partial.set(8, true)?;
+        partial.set(15, true)?;
+        assert_round_trip_bitdyn(partial)?;
 
-    // Test fully filled vector (24 bits)
-    let mut full = BitVectorDynamic::new(24)?;
-    for i in 0..24 {
-        full.set(i, true)?;
+        // Test fully filled vector (24 bits)
+        let mut full = BitVectorDynamic::new(24)?;
+        for i in 0..24 {
+            full.set(i, true)?;
+        }
+        assert_round_trip_bitdyn(full)?;
+
+        // Test alternating pattern (32 bits)
+        let mut alternating = BitVectorDynamic::new(32)?;
+        for i in 0..32 {
+            alternating.set(i, i % 2 == 0)?;
+        }
+        assert_round_trip_bitdyn(alternating)?;
+
+        // Test fully filled vector (128 bits)
+        let mut full = BitVectorDynamic::new(128)?;
+        for i in 0..128 {
+            full.set(i, true)?;
+        }
+        assert_round_trip_bitdyn(full)?;
+
+        Ok(())
     }
-    assert_round_trip_bitdyn(full)?;
-
-    // Test alternating pattern (32 bits)
-    let mut alternating = BitVectorDynamic::new(32)?;
-    for i in 0..32 {
-        alternating.set(i, i % 2 == 0)?;
-    }
-    assert_round_trip_bitdyn(alternating)?;
-
-    // Test fully filled vector (128 bits)
-    let mut full = BitVectorDynamic::new(128)?;
-    for i in 0..128 {
-        full.set(i, true)?;
-    }
-    assert_round_trip_bitdyn(full)?;
-
-    Ok(())
-}
-
-
-
-   
 }
