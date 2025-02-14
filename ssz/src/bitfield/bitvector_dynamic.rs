@@ -47,6 +47,7 @@ impl Bitfield<Dynamic> {
     }
 
     /// Create a dynamic bitfield from raw bytes and a declared logical length.
+    /// Can be used to specify a max_length if called directly instead of via Decode.
     pub fn from_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, len: usize) -> Result<Self, Error> {
         if len != bytes.len() * 8 {
             return Err(Error::InvalidByteCount {
@@ -77,6 +78,7 @@ impl Bitfield<Dynamic> {
         }
         result
     }
+    
 }
 
 impl Encode for Bitfield<Dynamic> {
@@ -338,6 +340,41 @@ mod dynamic_bitfield_tests {
         assert_eq!(bytes, decoded);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_from_bytes_equivalence() -> Result<(), Error> {
+        let mut original = BitVectorDynamic::new(16)?;
+        original.set(0, true)?;
+        original.set(8, true)?;
+        original.set(15, true)?;
+
+        let bytes = original.clone().into_bytes();
+        
+        // Both methods should produce equivalent results
+        let from_bytes = BitVectorDynamic::from_bytes(bytes.clone(), 16)?;
+        let from_ssz = BitVectorDynamic::from_ssz_bytes(&bytes)
+            .map_err(|_| Error::InvalidByteCount { given: 0, expected: 1 })?;
+        
+        assert_eq!(from_bytes, from_ssz);
+        assert_eq!(from_bytes, original);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_bytes_length_validation() {
+        // Create bytes representing a 32-bit field
+        let bytes = smallvec![0b1111_1111; 4];  // 32 bits set
+        
+        // Trying to decode as 16 bits should fail
+        assert!(matches!(
+            BitVectorDynamic::from_bytes(bytes.clone(), 16),
+            Err(Error::InvalidByteCount { .. })
+        ));
+
+        // Decoding with correct length should succeed
+        assert!(BitVectorDynamic::from_bytes(bytes, 32).is_ok());
     }
 }
 #[cfg(test)]
