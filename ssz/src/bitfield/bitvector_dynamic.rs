@@ -417,7 +417,7 @@ mod roundtrip_tests {
         T: Encode + Decode + PartialEq + std::fmt::Debug,
     {
         let bytes = t.as_ssz_bytes();
-        let decoded = T::from_ssz_bytes(&bytes).unwrap();
+        let decoded = T::from_ssz_bytes(&bytes).expect("decode failed in test");
         assert_eq!(decoded, t, "BitDyn must SSZ-roundtrip correctly.");
         Ok(())
     }
@@ -495,16 +495,15 @@ mod roundtrip_tests {
         let mut serializer = json_serializer::new(&mut output);
 
         // Call serialize
-        b.serialize(&mut serializer)
-            .map_err(|_| Error::ExcessBits {})?;
+        b.serialize(&mut serializer).expect("Serialization failed");
 
         // Create a deserializer
-        let json = String::from_utf8(output).map_err(|_| Error::ExcessBits {})?;
+        let json = String::from_utf8(output).expect("UTF-8 error");
         let mut deserializer = json_deserializer::from_str(&json);
 
         // Call deserialize
         let deserialized =
-            BitVectorDynamic::deserialize(&mut deserializer).map_err(|_| Error::ExcessBits {})?;
+            BitVectorDynamic::deserialize(&mut deserializer).expect("Deserialization failed");
 
         assert_eq!(b, deserialized);
 
