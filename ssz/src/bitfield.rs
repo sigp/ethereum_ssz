@@ -5,6 +5,7 @@ use serde::ser::{Serialize, Serializer};
 use serde_utils::hex::{encode as hex_encode, PrefixedHexVisitor};
 use smallvec::{smallvec, SmallVec, ToSmallVec};
 use typenum::Unsigned;
+pub mod bitvector_dynamic;
 
 /// Returned when an item encounters an error.
 #[derive(PartialEq, Debug, Clone)]
@@ -406,7 +407,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
                 .get(i / 8)
                 .ok_or(Error::OutOfBounds { i, len: self.len })?;
 
-            Ok(*byte & 1 << (i % 8) > 0)
+            Ok(*byte & (1 << (i % 8)) > 0)
         } else {
             Err(Error::OutOfBounds { i, len: self.len })
         }
@@ -564,7 +565,7 @@ impl<T> core::hash::Hash for Bitfield<T> {
 /// Returns the minimum required bytes to represent a given number of bits.
 ///
 /// `bit_len == 0` requires a single byte.
-fn bytes_for_bit_len(bit_len: usize) -> usize {
+pub fn bytes_for_bit_len(bit_len: usize) -> usize {
     std::cmp::max(1, (bit_len + 7) / 8)
 }
 
