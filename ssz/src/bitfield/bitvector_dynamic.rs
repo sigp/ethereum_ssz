@@ -48,7 +48,10 @@ impl Bitfield<Dynamic> {
 
     /// Create a dynamic bitfield from raw bytes and a declared logical length.
     /// Can be used to specify a max_length if called directly instead of via Decode.
-    pub fn from_bytes_with_len(bytes: SmallVec<[u8; SMALLVEC_LEN]>, len: usize) -> Result<Self, Error> {
+    pub fn from_bytes_with_len(
+        bytes: SmallVec<[u8; SMALLVEC_LEN]>,
+        len: usize,
+    ) -> Result<Self, Error> {
         if len != bytes.len() * 8 {
             return Err(Error::InvalidByteCount {
                 given: len,
@@ -106,7 +109,7 @@ impl Decode for Bitfield<Dynamic> {
         if bytes.is_empty() {
             return Err(DecodeError::BytesInvalid("Empty bytes".into()));
         }
-    
+
         let len = bytes.len() * 8;
         Self::from_raw_bytes(bytes.to_smallvec(), len).map_err(|e| {
             DecodeError::BytesInvalid(format!("BitVectorDynamic failed to decode: {:?}", e))
@@ -174,10 +177,27 @@ mod dynamic_bitfield_tests {
     }
 
     #[test]
+    fn test_ssz_decode_errors() {
+        // Test empty bytes error (line 110)
+        let empty_bytes: &[u8] = &[];
+        assert!(matches!(
+            BitVectorDynamic::from_ssz_bytes(empty_bytes),
+            Err(DecodeError::BytesInvalid(msg)) if msg == "Empty bytes"
+        ));
+
+        // Test decode failure error (line 115)
+        let invalid_bytes = &[1, 2, 3];
+        assert!(matches!(
+            BitVectorDynamic::from_ssz_bytes(invalid_bytes),
+            Err(DecodeError::BytesInvalid(msg)) if msg.contains("failed to decode")
+        ));
+    }
+
+    #[test]
     fn test_intersection() -> Result<(), Error> {
-        let mut a = BitVectorDynamic::new(16).unwrap();
-        let mut b = BitVectorDynamic::new(16).unwrap();
-        let mut expected = BitVectorDynamic::new(16).unwrap();
+        let mut a = BitVectorDynamic::new(16)?;
+        let mut b = BitVectorDynamic::new(16)?;
+        let mut expected = BitVectorDynamic::new(16)?;
 
         a.set(1, true)?;
         a.set(3, true)?;
@@ -381,6 +401,17 @@ mod dynamic_bitfield_tests {
         // Decoding with correct length should succeed
         assert!(BitVectorDynamic::from_bytes_with_len(bytes, 32).is_ok());
     }
+
+    #[test]
+    fn test_ssz_bytes_len() -> Result<(), Error> {
+        let bitfield = BitVectorDynamic::new(16)?; // 16 bits = 2 bytes
+        assert_eq!(bitfield.ssz_bytes_len(), 2);
+
+        let bitfield = BitVectorDynamic::new(24)?; // 24 bits = 3 bytes
+        assert_eq!(bitfield.ssz_bytes_len(), 3);
+
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod roundtrip_tests {
@@ -449,6 +480,31 @@ mod roundtrip_tests {
             full.set(i, true)?;
         }
         assert_round_trip_bitdyn(full)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_serde_roundtrip() -> Result<(), Error> {
+        let mut bitfield = BitVectorDynamic::new(16)?;
+        bitfield.set(0, true)?;
+        bitfield.set(15, true)?;
+
+        // Test Serialize
+        let hex = hex_encode(bitfield.as_ssz_bytes());
+
+        // Test Deserialize - use PrefixedHexVisitor to parse hex
+        let bytes = serde_utils::hex::decode(&hex).map_err(|_| Error::InvalidByteCount {
+            given: 0,
+            expected: 1,
+        })?;
+        let deserialized =
+            BitVectorDynamic::from_ssz_bytes(&bytes).map_err(|_| Error::InvalidByteCount {
+                given: 0,
+                expected: 1,
+            })?;
+
+        assert_eq!(bitfield, deserialized);
 
         Ok(())
     }
