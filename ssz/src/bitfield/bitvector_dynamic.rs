@@ -479,6 +479,7 @@ mod roundtrip_tests {
 
     #[test]
     fn test_serde_roundtrip() -> Result<(), Error> {
+        use serde_json::de::Deserializer as json_deserializer;
         use serde_json::ser::Serializer as json_serializer;
 
         // Create a test BitVectorDynamic
@@ -493,11 +494,12 @@ mod roundtrip_tests {
         // Call serialize
         b.serialize(&mut serializer).unwrap();
 
-        // Convert output to string
+        // Create a deserializer
         let json = String::from_utf8(output).unwrap();
+        let mut deserializer = json_deserializer::from_str(&json);
 
-        // Deserialize back
-        let deserialized: BitVectorDynamic = serde_json::from_str(&json).unwrap();
+        // Call deserialize
+        let deserialized = BitVectorDynamic::deserialize(&mut deserializer).unwrap();
 
         assert_eq!(b, deserialized);
 
