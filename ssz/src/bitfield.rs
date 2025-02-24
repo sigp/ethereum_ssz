@@ -407,7 +407,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
                 .get(i / 8)
                 .ok_or(Error::OutOfBounds { i, len: self.len })?;
 
-            Ok(*byte & 1 << (i % 8) > 0)
+            Ok(*byte & (1 << (i % 8)) > 0)
         } else {
             Err(Error::OutOfBounds { i, len: self.len })
         }
