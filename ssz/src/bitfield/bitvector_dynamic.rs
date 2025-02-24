@@ -48,7 +48,7 @@ impl Bitfield<Dynamic> {
 
     /// Create a dynamic bitfield from raw bytes and a declared logical length.
     /// Can be used to specify a max_length if called directly instead of via Decode.
-    pub fn from_bytes(bytes: SmallVec<[u8; SMALLVEC_LEN]>, len: usize) -> Result<Self, Error> {
+    pub fn from_bytes_with_len(bytes: SmallVec<[u8; SMALLVEC_LEN]>, len: usize) -> Result<Self, Error> {
         if len != bytes.len() * 8 {
             return Err(Error::InvalidByteCount {
                 given: len,
@@ -59,24 +59,27 @@ impl Bitfield<Dynamic> {
     }
 
     /// Compute the intersection of two bitfields.
-    pub fn intersection(&self, other: &Self) -> Self {
-        let min_len = std::cmp::min(self.len(), other.len());
-        let mut result = Self::new(min_len).unwrap();
+    pub fn intersection(&self, other: &Self) -> Result<Self, Error> {
+        let max_len = std::cmp::max(self.len(), other.len());
+        let mut result = Self::new(max_len)?;
+
         for i in 0..result.bytes.len() {
-            result.bytes[i] = self.bytes[i] & other.bytes[i];
+            result.bytes[i] =
+                self.bytes.get(i).copied().unwrap_or(0) & other.bytes.get(i).copied().unwrap_or(0);
         }
-        result
+        Ok(result)
     }
 
     /// Compute the union of two bitfields.
-    pub fn union(&self, other: &Self) -> Self {
+    pub fn union(&self, other: &Self) -> Result<Self, Error> {
         let max_len = std::cmp::max(self.len(), other.len());
-        let mut result = Self::new(max_len).unwrap();
+        let mut result = Self::new(max_len)?;
+
         for i in 0..result.bytes.len() {
             result.bytes[i] =
                 self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
         }
-        result
+        Ok(result)
     }
 }
 
@@ -103,9 +106,9 @@ impl Decode for Bitfield<Dynamic> {
         if bytes.is_empty() {
             return Err(DecodeError::BytesInvalid("Empty bytes".into()));
         }
-
+    
         let len = bytes.len() * 8;
-        Self::from_bytes(bytes.to_smallvec(), len).map_err(|e| {
+        Self::from_raw_bytes(bytes.to_smallvec(), len).map_err(|e| {
             DecodeError::BytesInvalid(format!("BitVectorDynamic failed to decode: {:?}", e))
         })
     }
@@ -159,13 +162,13 @@ mod dynamic_bitfield_tests {
 
         // Convert to raw bytes and decode with a known length
         let bytes = bitfield.clone().into_bytes();
-        let decoded = BitVectorDynamic::from_bytes(bytes, 8)?;
+        let decoded = BitVectorDynamic::from_bytes_with_len(bytes, 8)?;
 
         assert_eq!(bitfield, decoded);
 
         // Test invalid cases
-        assert!(BitVectorDynamic::from_bytes(smallvec![], 8).is_err());
-        assert!(BitVectorDynamic::from_bytes(smallvec![0, 0, 0], 8).is_err());
+        assert!(BitVectorDynamic::from_bytes_with_len(smallvec![], 8).is_err());
+        assert!(BitVectorDynamic::from_bytes_with_len(smallvec![0, 0, 0], 8).is_err());
 
         Ok(())
     }
@@ -182,8 +185,8 @@ mod dynamic_bitfield_tests {
         b.set(4, true)?;
         expected.set(3, true)?;
 
-        assert_eq!(a.intersection(&b), expected);
-        assert_eq!(b.intersection(&a), expected);
+        assert_eq!(a.intersection(&b)?, expected);
+        assert_eq!(b.intersection(&a)?, expected);
 
         Ok(())
     }
@@ -203,8 +206,8 @@ mod dynamic_bitfield_tests {
         expected.set(3, true)?;
         expected.set(4, true)?;
 
-        assert_eq!(a.union(&b), expected);
-        assert_eq!(b.union(&a), expected);
+        assert_eq!(a.union(&b)?, expected);
+        assert_eq!(b.union(&a)?, expected);
 
         Ok(())
     }
@@ -351,7 +354,7 @@ mod dynamic_bitfield_tests {
         let bytes = original.clone().into_bytes();
 
         // Both methods should produce equivalent results
-        let from_bytes = BitVectorDynamic::from_bytes(bytes.clone(), 16)?;
+        let from_bytes = BitVectorDynamic::from_bytes_with_len(bytes.clone(), 16)?;
         let from_ssz =
             BitVectorDynamic::from_ssz_bytes(&bytes).map_err(|_| Error::InvalidByteCount {
                 given: 0,
@@ -371,12 +374,12 @@ mod dynamic_bitfield_tests {
 
         // Trying to decode as 16 bits should fail
         assert!(matches!(
-            BitVectorDynamic::from_bytes(bytes.clone(), 16),
+            BitVectorDynamic::from_bytes_with_len(bytes.clone(), 16),
             Err(Error::InvalidByteCount { .. })
         ));
 
         // Decoding with correct length should succeed
-        assert!(BitVectorDynamic::from_bytes(bytes, 32).is_ok());
+        assert!(BitVectorDynamic::from_bytes_with_len(bytes, 32).is_ok());
     }
 }
 #[cfg(test)]
