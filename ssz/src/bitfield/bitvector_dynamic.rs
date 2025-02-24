@@ -479,19 +479,27 @@ mod roundtrip_tests {
 
     #[test]
     fn test_serde_roundtrip() -> Result<(), Error> {
+        use serde_json::ser::Serializer as json_serializer;
+
         // Create a test BitVectorDynamic
         let mut b = BitVectorDynamic::new(16)?;
         b.set(0, true)?;
         b.set(7, true)?;
 
-        // Get hex string
-        let hex_string = hex_encode(b.as_ssz_bytes());
+        // Create a string buffer and serializer
+        let mut output = Vec::new();
+        let mut serializer = json_serializer::new(&mut output);
 
-        // Serialize and deserialize
-        let bytes = PrefixedHexVisitor::visit_str(&hex_string)?;
-        let deserialized = BitVectorDynamic::from_ssz_bytes(&bytes)?;
+        // Call serialize
+        b.serialize(&mut serializer).unwrap();
 
-        assert!(b, deserialized);
+        // Convert output to string
+        let json = String::from_utf8(output).unwrap();
+
+        // Deserialize back
+        let deserialized: BitVectorDynamic = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(b, deserialized);
 
         Ok(())
     }
