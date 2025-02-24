@@ -178,13 +178,12 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_ssz_decode_errors() {
-        // Test empty bytes error 
+        // Test empty bytes error
         let empty_bytes: &[u8] = &[];
         assert!(matches!(
             BitVectorDynamic::from_ssz_bytes(empty_bytes),
             Err(DecodeError::BytesInvalid(msg)) if msg == "Empty bytes"
         ));
-
     }
 
     #[test]
@@ -480,25 +479,19 @@ mod roundtrip_tests {
 
     #[test]
     fn test_serde_roundtrip() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16)?;
-        bitfield.set(0, true)?;
-        bitfield.set(15, true)?;
+        // Create a test BitVectorDynamic
+        let mut b = BitVectorDynamic::new(16)?;
+        b.set(0, true)?;
+        b.set(7, true)?;
 
-        // Test Serialize
-        let hex = hex_encode(bitfield.as_ssz_bytes());
+        // Get hex string
+        let hex_string = hex_encode(b.as_ssz_bytes());
 
-        // Test Deserialize - use PrefixedHexVisitor to parse hex
-        let bytes = serde_utils::hex::decode(&hex).map_err(|_| Error::InvalidByteCount {
-            given: 0,
-            expected: 1,
-        })?;
-        let deserialized =
-            BitVectorDynamic::from_ssz_bytes(&bytes).map_err(|_| Error::InvalidByteCount {
-                given: 0,
-                expected: 1,
-            })?;
+        // Serialize and deserialize
+        let bytes = PrefixedHexVisitor::visit_str(&hex_string)?;
+        let deserialized = BitVectorDynamic::from_ssz_bytes(&bytes)?;
 
-        assert_eq!(bitfield, deserialized);
+        assert!(b, deserialized);
 
         Ok(())
     }
