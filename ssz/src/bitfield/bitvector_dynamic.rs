@@ -143,7 +143,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_basic_operations() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16).unwrap();
+        let mut bitfield = BitVectorDynamic::new(16)?;
 
         // Set/get within bounds should succeed or return Ok
         assert!(bitfield.set(0, true).is_ok());
@@ -159,7 +159,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_ssz_encode_decode() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(8).unwrap();
+        let mut bitfield = BitVectorDynamic::new(8)?;
         bitfield.set(0, true)?;
         bitfield.set(7, true)?;
 
@@ -206,9 +206,9 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_union() -> Result<(), Error> {
-        let mut a = BitVectorDynamic::new(16).unwrap();
-        let mut b = BitVectorDynamic::new(16).unwrap();
-        let mut expected = BitVectorDynamic::new(16).unwrap();
+        let mut a = BitVectorDynamic::new(16)?;
+        let mut b = BitVectorDynamic::new(16)?;
+        let mut expected = BitVectorDynamic::new(16)?;
 
         a.set(1, true)?;
         a.set(3, true)?;
@@ -227,7 +227,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_highest_set_bit() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16).unwrap();
+        let mut bitfield = BitVectorDynamic::new(16)?;
         assert_eq!(bitfield.highest_set_bit(), None);
 
         bitfield.set(3, true)?;
@@ -241,7 +241,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_is_zero() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16).unwrap();
+        let mut bitfield = BitVectorDynamic::new(16)?;
         assert!(bitfield.is_zero());
 
         bitfield.set(0, true)?;
@@ -255,7 +255,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_num_set_bits() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16).unwrap();
+        let mut bitfield = BitVectorDynamic::new(16)?;
         assert_eq!(bitfield.num_set_bits(), 0);
 
         bitfield.set(1, true)?;
@@ -268,8 +268,8 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_difference() -> Result<(), Error> {
-        let mut a = BitVectorDynamic::new(16).unwrap();
-        let mut b = BitVectorDynamic::new(16).unwrap();
+        let mut a = BitVectorDynamic::new(16)?;
+        let mut b = BitVectorDynamic::new(16)?;
 
         a.set(1, true)?;
         a.set(3, true)?;
@@ -286,7 +286,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_shift_up() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(16).unwrap();
+        let mut bitfield = BitVectorDynamic::new(16)?;
         bitfield.set(0, true)?;
         bitfield.set(1, true)?;
 
@@ -303,7 +303,7 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_iter() -> Result<(), Error> {
-        let mut bitfield = BitVectorDynamic::new(8).unwrap();
+        let mut bitfield = BitVectorDynamic::new(8)?;
         bitfield.set(1, true)?;
         bitfield.set(4, true)?;
         bitfield.set(7, true)?;
@@ -349,7 +349,10 @@ mod dynamic_bitfield_tests {
 
         let encoded = bitfield.as_ssz_bytes();
         let decoded = BitVectorDynamic::from_ssz_bytes(&encoded)
-            .unwrap()
+            .map_err(|_| Error::InvalidByteCount {
+                given: encoded.len(),
+                expected: bytes.len(),
+            })?
             .into_bytes();
 
         assert_eq!(bytes, decoded);
@@ -422,7 +425,7 @@ mod roundtrip_tests {
     #[test]
     fn bitdyn_ssz_round_trip() -> Result<(), Error> {
         // length = 8, set even bits
-        let mut b = BitVectorDynamic::new(8).unwrap();
+        let mut b = BitVectorDynamic::new(8)?;
         for j in 0..8 {
             if j % 2 == 0 {
                 b.set(j, true)?;
@@ -431,7 +434,7 @@ mod roundtrip_tests {
         assert_round_trip_bitdyn(b)?;
 
         // length = 16, all bits
-        let mut b = BitVectorDynamic::new(16).unwrap();
+        let mut b = BitVectorDynamic::new(16)?;
         for j in 0..16 {
             b.set(j, true)?;
         }
@@ -492,14 +495,16 @@ mod roundtrip_tests {
         let mut serializer = json_serializer::new(&mut output);
 
         // Call serialize
-        b.serialize(&mut serializer).unwrap();
+        b.serialize(&mut serializer)
+            .map_err(|_| Error::ExcessBits {})?;
 
         // Create a deserializer
-        let json = String::from_utf8(output).unwrap();
+        let json = String::from_utf8(output).map_err(|_| Error::ExcessBits {})?;
         let mut deserializer = json_deserializer::from_str(&json);
 
         // Call deserialize
-        let deserialized = BitVectorDynamic::deserialize(&mut deserializer).unwrap();
+        let deserialized =
+            BitVectorDynamic::deserialize(&mut deserializer).map_err(|_| Error::ExcessBits {})?;
 
         assert_eq!(b, deserialized);
 
