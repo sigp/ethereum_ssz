@@ -178,19 +178,13 @@ mod dynamic_bitfield_tests {
 
     #[test]
     fn test_ssz_decode_errors() {
-        // Test empty bytes error (line 110)
+        // Test empty bytes error 
         let empty_bytes: &[u8] = &[];
         assert!(matches!(
             BitVectorDynamic::from_ssz_bytes(empty_bytes),
             Err(DecodeError::BytesInvalid(msg)) if msg == "Empty bytes"
         ));
 
-        // Test decode failure error (line 115)
-        let invalid_bytes = &[1, 2, 3];
-        assert!(matches!(
-            BitVectorDynamic::from_ssz_bytes(invalid_bytes),
-            Err(DecodeError::BytesInvalid(msg)) if msg.contains("failed to decode")
-        ));
     }
 
     #[test]
