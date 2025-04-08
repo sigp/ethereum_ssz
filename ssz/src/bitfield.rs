@@ -565,7 +565,7 @@ impl<T> core::hash::Hash for Bitfield<T> {
 ///
 /// `bit_len == 0` requires a single byte.
 fn bytes_for_bit_len(bit_len: usize) -> usize {
-    std::cmp::max(1, (bit_len + 7) / 8)
+    std::cmp::max(1, bit_len.div_ceil(8))
 }
 
 /// An iterator over the bits in a `Bitfield`.
