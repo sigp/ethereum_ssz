@@ -67,7 +67,8 @@ impl Bitfield<Dynamic> {
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
-            *byte = self.bytes.get(i).copied().unwrap_or(0) & other.bytes.get(i).copied().unwrap_or(0);
+            *byte =
+                self.bytes.get(i).copied().unwrap_or(0) & other.bytes.get(i).copied().unwrap_or(0);
         }
         Ok(result)
     }
@@ -78,7 +79,8 @@ impl Bitfield<Dynamic> {
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
-            *byte = self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
+            *byte =
+                self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
         }
         Ok(result)
     }
