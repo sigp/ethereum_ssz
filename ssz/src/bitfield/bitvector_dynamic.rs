@@ -66,9 +66,8 @@ impl Bitfield<Dynamic> {
         let max_len = std::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
-        for i in 0..result.bytes.len() {
-            result.bytes[i] =
-                self.bytes.get(i).copied().unwrap_or(0) & other.bytes.get(i).copied().unwrap_or(0);
+        for (i, byte) in result.bytes.iter_mut().enumerate() {
+            *byte = self.bytes.get(i).copied().unwrap_or(0) & other.bytes.get(i).copied().unwrap_or(0);
         }
         Ok(result)
     }
@@ -78,9 +77,8 @@ impl Bitfield<Dynamic> {
         let max_len = std::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
-        for i in 0..result.bytes.len() {
-            result.bytes[i] =
-                self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
+        for (i, byte) in result.bytes.iter_mut().enumerate() {
+            *byte = self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
         }
         Ok(result)
     }
