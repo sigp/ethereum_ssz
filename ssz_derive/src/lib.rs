@@ -9,18 +9,18 @@
 //! - `#[ssz(enum_behaviour = "tag")]`: encodes and decodes an `enum` with 0 fields per variant
 //! - `#[ssz(enum_behaviour = "union")]`: encodes and decodes an `enum` with a one-byte variant selector.
 //! - `#[ssz(enum_behaviour = "transparent")]`: allows encoding an `enum` by serializing only the
-//!     value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
-//!     in order and the first one that is successful is returned.
+//!   value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
+//!   in order and the first one that is successful is returned.
 //! - `#[ssz(struct_behaviour = "container")]`: encodes and decodes the `struct` as an SSZ
-//!     "container".
+//!   "container".
 //! - `#[ssz(struct_behaviour = "transparent")]`: encodes and decodes a `struct` with exactly one
-//!     non-skipped field as if the outermost `struct` does not exist.
+//!   non-skipped field as if the outermost `struct` does not exist.
 //!
 //! The following field attributes are available:
 //!
 //! - `#[ssz(with = "module")]`: uses the methods in `module` to implement `ssz::Encode` and
-//!     `ssz::Decode`. This is useful when it's not possible to create an `impl` for that type
-//!     (e.g. the type is defined in another crate).
+//!   `ssz::Decode`. This is useful when it's not possible to create an `impl` for that type
+//!   (e.g. the type is defined in another crate).
 //! - `#[ssz(skip_serializing)]`: this field will not be included in the serialized SSZ vector.
 //! - `#[ssz(skip_deserializing)]`: this field will not be expected in the serialized
 //!   SSZ vector and it will be initialized from a `Default` implementation.
