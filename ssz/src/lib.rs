@@ -40,6 +40,7 @@ mod encode;
 pub mod legacy;
 mod union_selector;
 
+pub use bitfield::bitvector_dynamic::{BitVectorDynamic, Dynamic};
 #[doc(hidden)]
 pub use bitfield::{BitList, BitVector, Bitfield, Error as BitfieldError, Fixed, Variable};
 pub use decode::{
