@@ -190,13 +190,12 @@ impl<'a> SszDecoderBuilder<'a> {
             let start = self.items_index;
             self.items_index += ssz_fixed_len;
 
-            let slice =
-                self.__bytes
-                    .get(start..self.items_index)
-                    .ok_or(DecodeError::InvalidByteLength {
-                        len: self.__bytes.len(),
-                        expected: self.items_index,
-                    })?;
+            let slice = self.__bytes.get(start..self.items_index).ok_or(
+                DecodeError::InvalidByteLength {
+                    len: self.__bytes.len(),
+                    expected: self.items_index,
+                },
+            )?;
 
             self.items.push(slice);
         } else {
