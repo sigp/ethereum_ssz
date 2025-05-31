@@ -116,7 +116,7 @@ pub trait Decode: Sized {
     ///
     /// The supplied bytes must be the exact length required to decode `Self`, excess bytes will
     /// result in an error.
-    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError>;
+    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError>;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -132,7 +132,7 @@ pub struct Offset {
 ///
 /// See [`SszDecoder`](struct.SszDecoder.html) for usage examples.
 pub struct SszDecoderBuilder<'a> {
-    bytes: &'a [u8],
+    __bytes: &'a [u8],
     items: SmallVec8<&'a [u8]>,
     offsets: SmallVec8<Offset>,
     items_index: usize,
@@ -141,9 +141,9 @@ pub struct SszDecoderBuilder<'a> {
 impl<'a> SszDecoderBuilder<'a> {
     /// Instantiate a new builder that should build a `SszDecoder` over the given `bytes` which
     /// are assumed to be the SSZ encoding of some object.
-    pub fn new(bytes: &'a [u8]) -> Self {
+    pub fn new(__bytes: &'a [u8]) -> Self {
         Self {
-            bytes,
+            __bytes,
             items: smallvec![],
             offsets: smallvec![],
             items_index: 0,
@@ -191,10 +191,10 @@ impl<'a> SszDecoderBuilder<'a> {
             self.items_index += ssz_fixed_len;
 
             let slice =
-                self.bytes
+                self.__bytes
                     .get(start..self.items_index)
                     .ok_or(DecodeError::InvalidByteLength {
-                        len: self.bytes.len(),
+                        len: self.__bytes.len(),
                         expected: self.items_index,
                     })?;
 
@@ -203,9 +203,9 @@ impl<'a> SszDecoderBuilder<'a> {
             self.offsets.push(Offset {
                 position: self.items.len(),
                 offset: sanitize_offset(
-                    read_offset(&self.bytes[self.items_index..])?,
+                    read_offset(&self.__bytes[self.items_index..])?,
                     self.offsets.last().map(|o| o.offset),
-                    self.bytes.len(),
+                    self.__bytes.len(),
                     None,
                 )?,
             });
@@ -236,19 +236,19 @@ impl<'a> SszDecoderBuilder<'a> {
                 let a = pair[0];
                 let b = pair[1];
 
-                self.items[a.position] = &self.bytes[a.offset..b.offset];
+                self.items[a.position] = &self.__bytes[a.offset..b.offset];
             }
 
             // Handle the last offset, pushing a slice from it's start through to the end of
             // `self.bytes`.
             if let Some(last) = self.offsets.last() {
-                self.items[last.position] = &self.bytes[last.offset..]
+                self.items[last.position] = &self.__bytes[last.offset..]
             }
         } else {
             // If the container is fixed-length, ensure there are no excess bytes.
-            if self.items_index != self.bytes.len() {
+            if self.items_index != self.__bytes.len() {
                 return Err(DecodeError::InvalidByteLength {
-                    len: self.bytes.len(),
+                    len: self.__bytes.len(),
                     expected: self.items_index,
                 });
             }
@@ -336,13 +336,13 @@ impl<'a> SszDecoder<'a> {
 ///
 /// - `bytes` is empty.
 /// - the union selector is not a valid value (i.e., larger than the maximum number of variants.
-pub fn split_union_bytes(bytes: &[u8]) -> Result<(UnionSelector, &[u8]), DecodeError> {
-    let selector = bytes
+pub fn split_union_bytes(__bytes: &[u8]) -> Result<(UnionSelector, &[u8]), DecodeError> {
+    let selector = __bytes
         .first()
         .copied()
         .ok_or(DecodeError::OutOfBoundsByte { i: 0 })
         .and_then(UnionSelector::new)?;
-    let body = bytes
+    let body = __bytes
         .get(1..)
         .ok_or(DecodeError::OutOfBoundsByte { i: 1 })?;
     Ok((selector, body))
@@ -350,10 +350,10 @@ pub fn split_union_bytes(bytes: &[u8]) -> Result<(UnionSelector, &[u8]), DecodeE
 
 /// Reads a `BYTES_PER_LENGTH_OFFSET`-byte length from `bytes`, where `bytes.len() >=
 /// BYTES_PER_LENGTH_OFFSET`.
-pub fn read_offset(bytes: &[u8]) -> Result<usize, DecodeError> {
-    decode_offset(bytes.get(0..BYTES_PER_LENGTH_OFFSET).ok_or(
+pub fn read_offset(__bytes: &[u8]) -> Result<usize, DecodeError> {
+    decode_offset(__bytes.get(0..BYTES_PER_LENGTH_OFFSET).ok_or(
         DecodeError::InvalidLengthPrefix {
-            len: bytes.len(),
+            len: __bytes.len(),
             expected: BYTES_PER_LENGTH_OFFSET,
         },
     )?)
@@ -361,15 +361,15 @@ pub fn read_offset(bytes: &[u8]) -> Result<usize, DecodeError> {
 
 /// Decode bytes as a little-endian usize, returning an `Err` if `bytes.len() !=
 /// BYTES_PER_LENGTH_OFFSET`.
-fn decode_offset(bytes: &[u8]) -> Result<usize, DecodeError> {
-    let len = bytes.len();
+fn decode_offset(__bytes: &[u8]) -> Result<usize, DecodeError> {
+    let len = __bytes.len();
     let expected = BYTES_PER_LENGTH_OFFSET;
 
     if len != expected {
         Err(DecodeError::InvalidLengthPrefix { len, expected })
     } else {
         let mut array: [u8; BYTES_PER_LENGTH_OFFSET] = std::default::Default::default();
-        array.clone_from_slice(bytes);
+        array.clone_from_slice(__bytes);
 
         Ok(u32::from_le_bytes(array) as usize)
     }
