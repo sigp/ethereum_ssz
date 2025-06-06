@@ -259,7 +259,7 @@ fn transparent_struct_newtype_skipped_field_reverse() {
 }
 
 #[derive(PartialEq, Debug, Encode, Decode)]
-struct StructWithMoreThanOneFieldAndFirstFieldAsBytes{
+struct StructWithMoreThanOneFieldAndFirstFieldAsBytes {
     bytes: Vec<u8>,
     length: u8,
 }
