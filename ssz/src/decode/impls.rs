@@ -19,15 +19,15 @@ macro_rules! impl_decodable_for_uint {
                 $bit_size / 8
             }
 
-            fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-                let len = __bytes.len();
+            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+                let len = bytes.len();
                 let expected = <Self as Decode>::ssz_fixed_len();
 
                 if len != expected {
                     Err(DecodeError::InvalidByteLength { len, expected })
                 } else {
                     let mut array: [u8; $bit_size / 8] = std::default::Default::default();
-                    array.clone_from_slice(__bytes);
+                    array.clone_from_slice(bytes);
 
                     Ok(Self::from_le_bytes(array))
                 }
@@ -74,8 +74,8 @@ macro_rules! impl_decode_for_tuples {
                     }
                 }
 
-                fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-                    let mut builder = SszDecoderBuilder::new(__bytes);
+                fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+                    let mut builder = SszDecoderBuilder::new(bytes);
 
                     $(
                         builder.register_type::<$T>()?;
@@ -204,19 +204,19 @@ impl Decode for bool {
         1
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            match __bytes[0] {
+            match bytes[0] {
                 0b0000_0000 => Ok(false),
                 0b0000_0001 => Ok(true),
                 _ => Err(DecodeError::BytesInvalid(format!(
                     "Out-of-range for boolean: {}",
-                    __bytes[0]
+                    bytes[0]
                 ))),
             }
         }
@@ -232,8 +232,8 @@ impl Decode for NonZeroUsize {
         <usize as Decode>::ssz_fixed_len()
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let x = usize::from_ssz_bytes(__bytes)?;
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let x = usize::from_ssz_bytes(bytes)?;
 
         if x == 0 {
             Err(DecodeError::BytesInvalid(
@@ -251,8 +251,8 @@ impl<T: Decode> Decode for Option<T> {
     fn is_ssz_fixed_len() -> bool {
         false
     }
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let (selector, body) = split_union_bytes(__bytes)?;
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let (selector, body) = split_union_bytes(bytes)?;
         match selector.into() {
             0u8 => Ok(None),
             1u8 => <T as Decode>::from_ssz_bytes(body).map(Option::Some),
@@ -270,8 +270,8 @@ impl<T: Decode> Decode for Arc<T> {
         T::ssz_fixed_len()
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        T::from_ssz_bytes(__bytes).map(Arc::new)
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        T::from_ssz_bytes(bytes).map(Arc::new)
     }
 }
 
@@ -284,14 +284,14 @@ impl Decode for Address {
         20
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(Self::from_slice(__bytes))
+            Ok(Self::from_slice(bytes))
         }
     }
 }
@@ -305,16 +305,16 @@ impl<const N: usize> Decode for FixedBytes<N> {
         N
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        if __bytes.len() != N {
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.len() != N {
             return Err(DecodeError::InvalidByteLength {
-                len: __bytes.len(),
+                len: bytes.len(),
                 expected: N,
             });
         }
 
         let mut fixed_array = [0u8; N];
-        fixed_array.copy_from_slice(__bytes);
+        fixed_array.copy_from_slice(bytes);
 
         Ok(Self(fixed_array))
     }
@@ -329,14 +329,14 @@ impl Decode for Bloom {
         256
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(Self::from_slice(__bytes))
+            Ok(Self::from_slice(bytes))
         }
     }
 }
@@ -350,14 +350,14 @@ impl Decode for U256 {
         32
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(U256::from_le_slice(__bytes))
+            Ok(U256::from_le_slice(bytes))
         }
     }
 }
@@ -369,8 +369,8 @@ impl Decode for Bytes {
     }
 
     #[inline]
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        Ok(__bytes.to_vec().into())
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        Ok(bytes.to_vec().into())
     }
 }
 
@@ -383,14 +383,14 @@ impl Decode for U128 {
         16
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
-            Ok(U128::from_le_slice(__bytes))
+            Ok(U128::from_le_slice(bytes))
         }
     }
 }
@@ -404,15 +404,15 @@ impl<const N: usize> Decode for [u8; N] {
         N
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        let len = __bytes.len();
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let len = bytes.len();
         let expected = <Self as Decode>::ssz_fixed_len();
 
         if len != expected {
             Err(DecodeError::InvalidByteLength { len, expected })
         } else {
             let mut array: [u8; N] = [0; N];
-            array.copy_from_slice(__bytes);
+            array.copy_from_slice(bytes);
 
             Ok(array)
         }
@@ -424,16 +424,16 @@ impl<T: Decode> Decode for Vec<T> {
         false
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        if __bytes.is_empty() {
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
             Ok(vec![])
         } else if T::is_ssz_fixed_len() {
-            __bytes
+            bytes
                 .chunks(T::ssz_fixed_len())
                 .map(T::from_ssz_bytes)
                 .collect()
         } else {
-            decode_list_of_variable_length_items(__bytes, None)
+            decode_list_of_variable_length_items(bytes, None)
         }
     }
 }
@@ -443,16 +443,16 @@ impl<T: Decode, const N: usize> Decode for SmallVec<[T; N]> {
         false
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        if __bytes.is_empty() {
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
             Ok(SmallVec::new())
         } else if T::is_ssz_fixed_len() {
-            __bytes
+            bytes
                 .chunks(T::ssz_fixed_len())
                 .map(T::from_ssz_bytes)
                 .collect()
         } else {
-            decode_list_of_variable_length_items(__bytes, None)
+            decode_list_of_variable_length_items(bytes, None)
         }
     }
 }
@@ -466,16 +466,16 @@ where
         false
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        if __bytes.is_empty() {
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
             Ok(Self::from_iter(iter::empty()))
         } else if <(K, V)>::is_ssz_fixed_len() {
-            __bytes
+            bytes
                 .chunks(<(K, V)>::ssz_fixed_len())
                 .map(<(K, V)>::from_ssz_bytes)
                 .collect()
         } else {
-            decode_list_of_variable_length_items(__bytes, None)
+            decode_list_of_variable_length_items(bytes, None)
         }
     }
 }
@@ -488,16 +488,16 @@ where
         false
     }
 
-    fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, DecodeError> {
-        if __bytes.is_empty() {
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        if bytes.is_empty() {
             Ok(Self::from_iter(iter::empty()))
         } else if T::is_ssz_fixed_len() {
-            __bytes
+            bytes
                 .chunks(T::ssz_fixed_len())
                 .map(T::from_ssz_bytes)
                 .collect()
         } else {
-            decode_list_of_variable_length_items(__bytes, None)
+            decode_list_of_variable_length_items(bytes, None)
         }
     }
 }
@@ -508,17 +508,17 @@ where
 /// significantly faster as it is optimized to read same-typed items whilst `ssz::SszDecoder`
 /// supports reading items of differing types.
 pub fn decode_list_of_variable_length_items<T: Decode, Container: TryFromIter<T>>(
-    __bytes: &[u8],
+    bytes: &[u8],
     max_len: Option<usize>,
 ) -> Result<Container, DecodeError> {
-    if __bytes.is_empty() {
+    if bytes.is_empty() {
         return Container::try_from_iter(iter::empty()).map_err(|e| {
             DecodeError::BytesInvalid(format!("Error trying to collect empty list: {:?}", e))
         });
     }
 
-    let first_offset = read_offset(__bytes)?;
-    sanitize_offset(first_offset, None, __bytes.len(), Some(first_offset))?;
+    let first_offset = read_offset(bytes)?;
+    sanitize_offset(first_offset, None, bytes.len(), Some(first_offset))?;
 
     if first_offset % BYTES_PER_LENGTH_OFFSET != 0 || first_offset < BYTES_PER_LENGTH_OFFSET {
         return Err(DecodeError::InvalidListFixedBytesLen(first_offset));
@@ -537,15 +537,15 @@ pub fn decode_list_of_variable_length_items<T: Decode, Container: TryFromIter<T>
     process_results(
         (1..=num_items).map(|i| {
             let slice_option = if i == num_items {
-                __bytes.get(offset..)
+                bytes.get(offset..)
             } else {
                 let start = offset;
 
-                let next_offset = read_offset(&__bytes[(i * BYTES_PER_LENGTH_OFFSET)..])?;
+                let next_offset = read_offset(&bytes[(i * BYTES_PER_LENGTH_OFFSET)..])?;
                 offset =
-                    sanitize_offset(next_offset, Some(offset), __bytes.len(), Some(first_offset))?;
+                    sanitize_offset(next_offset, Some(offset), bytes.len(), Some(first_offset))?;
 
-                __bytes.get(start..offset)
+                bytes.get(start..offset)
             };
 
             let slice = slice_option.ok_or(DecodeError::OutOfBoundsByte { i: offset })?;
