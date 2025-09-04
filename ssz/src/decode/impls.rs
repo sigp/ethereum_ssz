@@ -11,14 +11,17 @@ use std::sync::Arc;
 macro_rules! impl_decodable_for_uint {
     ($type: ident, $bit_size: expr) => {
         impl Decode for $type {
+            #[inline(always)]
             fn is_ssz_fixed_len() -> bool {
                 true
             }
 
+            #[inline(always)]
             fn ssz_fixed_len() -> usize {
                 $bit_size / 8
             }
 
+            #[inline(always)]
             fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
                 let len = bytes.len();
                 let expected = <Self as Decode>::ssz_fixed_len();
