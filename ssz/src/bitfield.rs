@@ -913,6 +913,12 @@ mod bitvector {
     fn size_of() {
         assert_eq!(std::mem::size_of::<BitVector64>(), SMALLVEC_LEN + 24);
     }
+
+    #[test]
+    fn display() {
+        let bitvec = BitVector16::from_bytes(smallvec![0b0010_1011, 0b0010_1110]).unwrap();
+        assert_eq!("1101010001110100", bitvec.to_string());
+    }
 }
 
 #[cfg(test)]
@@ -1450,5 +1456,11 @@ mod bitlist {
     fn over_capacity_err() {
         let e = BitList8::with_capacity(9).expect_err("over-sized bit list");
         assert_eq!(e, Error::OutOfBounds { i: 9, len: 8 });
+    }
+
+    #[test]
+    fn display() {
+        let bitlist = BitList1024::from_raw_bytes(smallvec![0b0011_1111, 0b0001_0101], 15).unwrap();
+        assert_eq!("111111001010100", bitlist.to_string());
     }
 }
