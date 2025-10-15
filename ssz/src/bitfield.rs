@@ -352,7 +352,7 @@ impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
     }
 }
 
-impl<N: Unsigned + Clone> std::fmt::Display for Bitfield<Fixed<N>> {
+impl<T: BitfieldBehaviour> std::fmt::Display for Bitfield<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut field: String = "".to_string();
         for i in self.iter() {

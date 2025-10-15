@@ -8,18 +8,22 @@ use std::sync::Arc;
 macro_rules! impl_encodable_for_uint {
     ($type: ident, $bit_size: expr) => {
         impl Encode for $type {
+            #[inline(always)]
             fn is_ssz_fixed_len() -> bool {
                 true
             }
 
+            #[inline(always)]
             fn ssz_fixed_len() -> usize {
                 $bit_size / 8
             }
 
+            #[inline(always)]
             fn ssz_bytes_len(&self) -> usize {
                 $bit_size / 8
             }
 
+            #[inline(always)]
             fn ssz_append(&self, buf: &mut Vec<u8>) {
                 buf.extend_from_slice(&self.to_le_bytes());
             }
