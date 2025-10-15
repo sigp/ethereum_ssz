@@ -257,3 +257,45 @@ fn transparent_struct_newtype_skipped_field_reverse() {
         &vec![42_u8].as_ssz_bytes(),
     );
 }
+
+#[derive(PartialEq, Debug, Encode)]
+#[ssz(struct_behaviour = "transparent")]
+struct TransparentStructSkippedFieldEncodeOnly {
+    inner: Vec<u8>,
+    #[ssz(skip_serializing)]
+    skipped: PhantomData<u64>,
+}
+
+// We implement Decode manually (without derive) so we can reuse `assert_encode_decode` in the test.
+impl Decode for TransparentStructSkippedFieldEncodeOnly {
+    fn is_ssz_fixed_len() -> bool {
+        <TransparentStructSkippedField as Decode>::is_ssz_fixed_len()
+    }
+
+    fn ssz_fixed_len() -> usize {
+        <TransparentStructSkippedField as Decode>::ssz_fixed_len()
+    }
+
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+        let value = TransparentStructSkippedField::from_ssz_bytes(bytes)?;
+        Ok(Self {
+            inner: value.inner,
+            skipped: PhantomData,
+        })
+    }
+}
+
+// This is a regression test for deriving *just* Encode on a struct with a single field.
+//
+// Previously this was buggy because the derive macro expected the skipped field to be marked as
+// `skip_deserializing` rather than `skip_serializing`.
+#[test]
+fn transparent_struct_newtype_skipped_encode_only() {
+    assert_encode_decode(
+        &TransparentStructSkippedFieldEncodeOnly {
+            inner: vec![42_u8],
+            skipped: PhantomData,
+        },
+        &vec![42_u8].as_ssz_bytes(),
+    );
+}
