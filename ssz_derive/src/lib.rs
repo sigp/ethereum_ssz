@@ -818,7 +818,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
         }
 
         fixed_decodes.push(quote! {
-            let (slice, bytes) = bytes.split_at(#ssz_fixed_len);
+            let (slice, __bytes) = __bytes.split_at(#ssz_fixed_len);
             let #ident = #from_ssz_bytes?;
         });
         is_fixed_lens.push(is_ssz_fixed_len);
@@ -848,11 +848,11 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                 }
             }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
                 if <Self as ssz::Decode>::is_ssz_fixed_len() {
-                    if bytes.len() != <Self as ssz::Decode>::ssz_fixed_len() {
+                    if __bytes.len() != <Self as ssz::Decode>::ssz_fixed_len() {
                         return Err(ssz::DecodeError::InvalidByteLength {
-                            len: bytes.len(),
+                            len: __bytes.len(),
                             expected: <Self as ssz::Decode>::ssz_fixed_len(),
                         });
                     }
@@ -867,7 +867,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                         )*
                     })
                 } else {
-                    let mut builder = ssz::SszDecoderBuilder::new(bytes);
+                    let mut builder = ssz::SszDecoderBuilder::new(__bytes);
 
                     #(
                         #register_types
@@ -932,7 +932,7 @@ fn ssz_decode_derive_struct_transparent(
                 });
             } else {
                 fields.push(quote! {
-                    #name: <_>::from_ssz_bytes(bytes)?,
+                    #name: <_>::from_ssz_bytes(__bytes)?,
                 });
                 wrapped_type = Some(ty);
             }
@@ -944,7 +944,7 @@ fn ssz_decode_derive_struct_transparent(
                 });
             } else {
                 fields.push(quote! {
-                    #index:<_>::from_ssz_bytes(bytes)?,
+                    #index:<_>::from_ssz_bytes(__bytes)?,
                 });
                 wrapped_type = Some(ty);
             }
@@ -963,7 +963,7 @@ fn ssz_decode_derive_struct_transparent(
                 <#ty as ssz::Decode>::ssz_fixed_len()
             }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
                 Ok(Self {
                     #(
                         #fields
@@ -1009,8 +1009,8 @@ fn ssz_decode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
                 1
             }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
-                let byte = bytes
+            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+                let byte = __bytes
                     .first()
                     .copied()
                     .ok_or(ssz::DecodeError::OutOfBoundsByte { i: 0 })?;
@@ -1061,12 +1061,12 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
                 false
             }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
                 // Sanity check to ensure the definition here does not drift from the one defined in
                 // `ssz`.
                 debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
 
-                let (selector, body) = ssz::split_union_bytes(bytes)?;
+                let (selector, body) = ssz::split_union_bytes(__bytes)?;
 
                 match selector.into() {
                     #(
@@ -1128,9 +1128,9 @@ fn ssz_decode_derive_enum_transparent(
                 false
             }
 
-            fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
                 #(
-                    if let Ok(var) = <#var_types as ssz::Decode>::from_ssz_bytes(bytes) {
+                    if let Ok(var) = <#var_types as ssz::Decode>::from_ssz_bytes(__bytes) {
                         return Ok(#constructors(var));
                     }
                 )*
