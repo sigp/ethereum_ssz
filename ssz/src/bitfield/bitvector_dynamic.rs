@@ -29,7 +29,7 @@ impl Bitfield<Dynamic> {
                 expected: 8,
             });
         }
-        if len % 8 != 0 {
+        if !len.is_multiple_of(8) {
             return Err(Error::InvalidByteCount {
                 given: len,
                 expected: (len / 8 + 1) * 8,
