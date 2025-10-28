@@ -40,6 +40,9 @@ mod encode;
 pub mod legacy;
 mod union_selector;
 
+#[cfg(feature = "context_deserialize")]
+mod context_deserialize;
+
 pub use bitfield::bitvector_dynamic::{BitVectorDynamic, Dynamic};
 #[doc(hidden)]
 pub use bitfield::{BitList, BitVector, Bitfield, Error as BitfieldError, Fixed, Variable};
