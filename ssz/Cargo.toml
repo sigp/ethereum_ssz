@@ -26,7 +26,7 @@ serde = "1.0.0"
 serde_derive = "1.0.0"
 typenum = "1.12.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
-context_deserialize = { version = "0.1", optional = true }
+context_deserialize = { version = "0.2", optional = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "1.0", features = ["getrandom"] }
