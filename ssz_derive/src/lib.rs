@@ -456,7 +456,7 @@ fn ssz_encode_derive_struct_transparent(
     let ssz_fields = parse_ssz_fields(struct_data);
     let num_fields = ssz_fields
         .iter()
-        .filter(|(_, _, field_opts)| !field_opts.skip_deserializing)
+        .filter(|(_, _, field_opts)| !field_opts.skip_serializing)
         .count();
 
     if num_fields != 1 {
@@ -469,7 +469,7 @@ fn ssz_encode_derive_struct_transparent(
     let (index, (ty, ident, _field_opts)) = ssz_fields
         .iter()
         .enumerate()
-        .find(|(_, (_, _, field_opts))| !field_opts.skip_deserializing)
+        .find(|(_, (_, _, field_opts))| !field_opts.skip_serializing)
         .expect("\"transparent\" struct must have at least one non-skipped field");
 
     // Remove the `_usize` suffix from the value to avoid a compiler warning.
