@@ -13,10 +13,9 @@ categories = ["cryptography::cryptocurrencies"]
 [lib]
 name = "ssz"
 
-[dev-dependencies]
-alloy-primitives = { version = "1.0", features = ["getrandom"] }
-ethereum_ssz_derive = { version = "0.9.0", path = "../ssz_derive" }
-serde_json = "1.0.0"
+[features]
+arbitrary = ["dep:arbitrary", "alloy-primitives/arbitrary"]
+context_deserialize = ["dep:context_deserialize"]
 
 [dependencies]
 alloy-primitives = "1.0"
@@ -27,6 +26,9 @@ serde = "1.0.0"
 serde_derive = "1.0.0"
 typenum = "1.12.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
+context_deserialize = { version = "0.2", optional = true }
 
-[features]
-arbitrary = ["dep:arbitrary", "alloy-primitives/arbitrary"]
+[dev-dependencies]
+alloy-primitives = { version = "1.0", features = ["getrandom"] }
+ethereum_ssz_derive = { version = "0.9.0", path = "../ssz_derive" }
+serde_json = "1.0.0"
