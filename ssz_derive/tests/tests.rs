@@ -258,6 +258,22 @@ fn transparent_struct_newtype_skipped_field_reverse() {
     );
 }
 
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct StructWithMoreThanOneFieldAndFirstFieldAsBytes {
+    bytes: Vec<u8>,
+    length: u8,
+}
+
+#[test]
+fn struct_with_more_than_one_field_and_first_field_as_bytes() {
+    let test_struct = StructWithMoreThanOneFieldAndFirstFieldAsBytes {
+        bytes: vec![42_u8],
+        length: 7,
+    };
+
+    assert_encode_decode(&test_struct, &[5, 0, 0, 0, 7, 42]);
+}
+
 #[derive(PartialEq, Debug, Encode)]
 #[ssz(struct_behaviour = "transparent")]
 struct TransparentStructSkippedFieldEncodeOnly {
