@@ -44,6 +44,7 @@ mod union_selector;
 mod context_deserialize;
 
 pub use bitfield::bitvector_dynamic::{BitVectorDynamic, Dynamic};
+pub use bitfield::progressive::{Progressive, ProgressiveBitlist};
 #[doc(hidden)]
 pub use bitfield::{BitList, BitVector, Bitfield, Error as BitfieldError, Fixed, Variable};
 pub use decode::{
