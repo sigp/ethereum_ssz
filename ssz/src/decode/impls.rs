@@ -840,7 +840,7 @@ mod tests {
     }
 
     #[test]
-    fn option_none_rejects_trailing_bytes() {
+    fn option_union_rejects_trailing_bytes() {
         // Selector 0x00 for None variant, followed by a trailing byte 0xFF
         // This should be rejected as the None variant must have an empty body.
         let dirty_bytes: &[u8] = &[0x00, 0xFF];
@@ -871,5 +871,17 @@ mod tests {
         // Valid Some encoding should still work
         let valid_some: &[u8] = &[0x01, 0x42];
         assert_eq!(<Option<u8>>::from_ssz_bytes(valid_some), Ok(Some(0x42)));
+    }
+
+    #[test]
+    fn option_union_invalid_selector() {
+        assert_eq!(
+            <Option::<u8>>::from_ssz_bytes(&[0x02]),
+            Err(DecodeError::UnionSelectorInvalid(2))
+        );
+        assert_eq!(
+            <Option::<u8>>::from_ssz_bytes(&[0xff, 0x00, 0x00]),
+            Err(DecodeError::UnionSelectorInvalid(255))
+        );
     }
 }
