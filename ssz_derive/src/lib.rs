@@ -1221,14 +1221,12 @@ fn ssz_decode_derive_enum_compatible_union(
                 // `ssz`.
                 debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
 
-                let selector = __bytes
-                    .first()
-                    .copied()
-                    .ok_or(ssz::DecodeError::OutOfBoundsByte { i: 0 })?;
-                
-                let body = __bytes
-                    .get(1..)
-                    .ok_or(ssz::DecodeError::OutOfBoundsByte { i: 1 })?;
+                if __bytes.is_empty() {
+                    return Err(ssz::DecodeError::OutOfBoundsByte { i: 0 });
+                }
+
+                let selector = __bytes[0];
+                let body = &__bytes[1..];
 
                 match selector {
                     #(
@@ -1330,7 +1328,7 @@ fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
     let union_selectors = (1..=num_variants)
         .map(|i| {
             i.try_into()
-                .expect("compatible union selector exceeds u8::MAX, union has too many variants")
+                .expect("compatible union selector exceeds MAX_UNION_SELECTOR (127), union has too many variants")
         })
         .collect::<Vec<u8>>();
 
