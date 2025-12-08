@@ -1333,7 +1333,7 @@ fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
                 .checked_add(1)
                 .and_then(|base| base.checked_add(i))
                 .and_then(|s| s.try_into().ok())
-                .expect("compatible union selector exceeds u8::max_value, union has too many variants");
+                .expect("compatible union selector exceeds u8::MAX, union has too many variants");
             selector
         })
         .collect::<Vec<u8>>();
@@ -1345,7 +1345,7 @@ fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
 
     assert!(
         highest_selector > MAX_UNION_SELECTOR,
-        "compatible union selector {} must be greater than {}, enum has no variants",
+        "compatible union selector {} must be greater than {}",
         highest_selector,
         MAX_UNION_SELECTOR
     );
