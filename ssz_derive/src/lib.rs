@@ -9,7 +9,7 @@
 //! - `#[ssz(enum_behaviour = "tag")]`: encodes and decodes an `enum` with 0 fields per variant
 //! - `#[ssz(enum_behaviour = "union")]`: encodes and decodes an `enum` with a one-byte variant selector.
 //! - `#[ssz(enum_behaviour = "compatible_union")]`: encodes and decodes an `enum` with a one-byte
-//!   variant selector using selectors 128-255 per EIP-8016 for backwards compatible unions.
+//!   variant selector using selectors 1-127 per EIP-8016 for backwards compatible unions.
 //! - `#[ssz(enum_behaviour = "transparent")]`: allows encoding an `enum` by serializing only the
 //!   value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
 //!   in order and the first one that is successful is returned.
@@ -140,10 +140,10 @@
 //!
 //! assert_eq!(
 //!     CompatibleUnionEnum::Foo(42).as_ssz_bytes(),
-//!     vec![128, 42]
+//!     vec![1, 42]
 //! );
 //! assert_eq!(
-//!     CompatibleUnionEnum::from_ssz_bytes(&[129, 42, 42]).unwrap(),
+//!     CompatibleUnionEnum::from_ssz_bytes(&[2, 42, 42]).unwrap(),
 //!     CompatibleUnionEnum::Bar(vec![42, 42]),
 //! );
 //!
@@ -754,8 +754,8 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
 /// Derive `ssz::Encode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
 ///
 /// The union selector will be determined based upon the order in which the enum variants are
-/// defined. E.g., the top-most variant in the enum will have a selector of `128`, the variant
-/// beneath it will have a selector of `129` and so on.
+/// defined. E.g., the top-most variant in the enum will have a selector of `1`, the variant
+/// beneath it will have a selector of `2` and so on.
 ///
 /// # Limitations
 ///
@@ -808,7 +808,7 @@ fn ssz_encode_derive_enum_compatible_union(
                     #(
                         #patterns => {
                             let union_selector: u8 = #union_selectors;
-                            debug_assert!(union_selector > ssz::MAX_UNION_SELECTOR);
+                            debug_assert!(union_selector > 0 && union_selector <= ssz::MAX_UNION_SELECTOR);
                             buf.push(union_selector);
                             inner.ssz_append(buf)
                         },
@@ -1327,14 +1327,10 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
 }
 
 fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
-    let union_selectors = (0..num_variants)
+    let union_selectors = (1..=num_variants)
         .map(|i| {
-            let selector = (MAX_UNION_SELECTOR as usize)
-                .checked_add(1)
-                .and_then(|base| base.checked_add(i))
-                .and_then(|s| s.try_into().ok())
-                .expect("compatible union selector exceeds u8::MAX, union has too many variants");
-            selector
+            i.try_into()
+                .expect("compatible union selector exceeds u8::MAX, union has too many variants")
         })
         .collect::<Vec<u8>>();
 
@@ -1344,8 +1340,8 @@ fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
         .expect("0-variant union is not permitted");
 
     assert!(
-        highest_selector > MAX_UNION_SELECTOR,
-        "compatible union selector {} must be greater than {}",
+        highest_selector <= MAX_UNION_SELECTOR,
+        "compatible union selector {} exceeds limit of {}, enum has too many variants",
         highest_selector,
         MAX_UNION_SELECTOR
     );

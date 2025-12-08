@@ -333,17 +333,17 @@ fn two_fixed_compatible_union() {
     let eight = TwoFixedCompatibleUnion::U8(1);
     let sixteen = TwoFixedCompatibleUnion::U16(1);
 
-    // Selectors should be 128 and 129
-    assert_encode_decode(&eight, &[128, 1]);
-    assert_encode_decode(&sixteen, &[129, 1, 0]);
+    // Selectors should be 1 and 2
+    assert_encode_decode(&eight, &[1, 1]);
+    assert_encode_decode(&sixteen, &[2, 1, 0]);
 
     assert_encode_decode(
         &TwoFixedCompatibleUnionStruct { a: eight },
-        &[4, 0, 0, 0, 128, 1],
+        &[4, 0, 0, 0, 1, 1],
     );
     assert_encode_decode(
         &TwoFixedCompatibleUnionStruct { a: sixteen },
-        &[4, 0, 0, 0, 129, 1, 0],
+        &[4, 0, 0, 0, 2, 1, 0],
     );
 }
 
@@ -370,17 +370,17 @@ fn two_variable_compatible_union() {
         b: 3,
     });
 
-    // Selectors should be 128 and 129
-    assert_encode_decode(&union_a, &[128, 1, 5, 0, 0, 0, 2, 3]);
-    assert_encode_decode(&union_b, &[129, 5, 0, 0, 0, 3, 1, 2]);
+    // Selectors should be 1 and 2
+    assert_encode_decode(&union_a, &[1, 1, 5, 0, 0, 0, 2, 3]);
+    assert_encode_decode(&union_b, &[2, 5, 0, 0, 0, 3, 1, 2]);
 
     assert_encode_decode(
         &TwoVariableCompatibleUnionStruct { a: union_a },
-        &[4, 0, 0, 0, 128, 1, 5, 0, 0, 0, 2, 3],
+        &[4, 0, 0, 0, 1, 1, 5, 0, 0, 0, 2, 3],
     );
     assert_encode_decode(
         &TwoVariableCompatibleUnionStruct { a: union_b },
-        &[4, 0, 0, 0, 129, 5, 0, 0, 0, 3, 1, 2],
+        &[4, 0, 0, 0, 2, 5, 0, 0, 0, 3, 1, 2],
     );
 }
 
@@ -393,13 +393,13 @@ enum TwoVecCompatibleUnion {
 
 #[test]
 fn two_vec_compatible_union() {
-    // Selectors should be 128 and 129
-    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![]), &[128]);
-    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![]), &[129]);
+    // Selectors should be 1 and 2
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![]), &[1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![]), &[2]);
 
-    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0]), &[128, 0]);
-    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0]), &[129, 0]);
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0]), &[1, 0]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0]), &[2, 0]);
 
-    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[128, 0, 1]);
-    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[129, 0, 1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[1, 0, 1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[2, 0, 1]);
 }
