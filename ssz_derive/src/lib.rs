@@ -8,6 +8,8 @@
 //!
 //! - `#[ssz(enum_behaviour = "tag")]`: encodes and decodes an `enum` with 0 fields per variant
 //! - `#[ssz(enum_behaviour = "union")]`: encodes and decodes an `enum` with a one-byte variant selector.
+//! - `#[ssz(enum_behaviour = "compatible_union")]`: encodes and decodes an `enum` with a one-byte
+//!   variant selector using selectors 1-127 per EIP-8016 for backwards compatible unions.
 //! - `#[ssz(enum_behaviour = "transparent")]`: allows encoding an `enum` by serializing only the
 //!   value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
 //!   in order and the first one that is successful is returned.
@@ -128,6 +130,23 @@
 //!     UnionEnum::Bar(vec![42, 42]),
 //! );
 //!
+//! /// Represented as an SSZ "compatible union" per EIP-8016.
+//! #[derive(Debug, PartialEq, Encode, Decode)]
+//! #[ssz(enum_behaviour = "compatible_union")]
+//! enum CompatibleUnionEnum {
+//!     Foo(u8),
+//!     Bar(Vec<u8>),
+//! }
+//!
+//! assert_eq!(
+//!     CompatibleUnionEnum::Foo(42).as_ssz_bytes(),
+//!     vec![1, 42]
+//! );
+//! assert_eq!(
+//!     CompatibleUnionEnum::from_ssz_bytes(&[2, 42, 42]).unwrap(),
+//!     CompatibleUnionEnum::Bar(vec![42, 42]),
+//! );
+//!
 //! /// Represented as only the value in the enum variant.
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(enum_behaviour = "transparent")]
@@ -177,7 +196,7 @@ use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Ident, Index};
 const MAX_UNION_SELECTOR: u8 = 127;
 
 const NO_ENUM_BEHAVIOUR_ERROR: &str = "enums require an \"enum_behaviour\" attribute with \
-    a \"transparent\", \"union\", or \"tag\" value, e.g., #[ssz(enum_behaviour = \"transparent\")]";
+    a \"transparent\", \"union\", \"tag\", or \"compatible_union\" value, e.g., #[ssz(enum_behaviour = \"transparent\")]";
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(ssz))]
@@ -219,6 +238,7 @@ enum EnumBehaviour {
     Union,
     Transparent,
     Tag,
+    CompatibleUnion,
 }
 
 impl<'a> Procedure<'a> {
@@ -264,8 +284,12 @@ impl<'a> Procedure<'a> {
                         data,
                         behaviour: EnumBehaviour::Tag,
                     },
+                    Some("compatible_union") => Procedure::Enum {
+                        data,
+                        behaviour: EnumBehaviour::CompatibleUnion,
+                    },
                     Some(other) => panic!(
-                        "{} is not a valid enum behaviour, use \"container\" or \"transparent\"",
+                        "{} is not a valid enum behaviour, use \"union\", \"transparent\", \"tag\", or \"compatible_union\"",
                         other
                     ),
                     None => panic!("{}", NO_ENUM_BEHAVIOUR_ERROR),
@@ -321,6 +345,9 @@ pub fn ssz_encode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Transparent => ssz_encode_derive_enum_transparent(&item, data),
             EnumBehaviour::Union => ssz_encode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_encode_derive_enum_tag(&item, data),
+            EnumBehaviour::CompatibleUnion => {
+                ssz_encode_derive_enum_compatible_union(&item, data)
+            }
         },
     }
 }
@@ -724,6 +751,75 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     output.into()
 }
 
+/// Derive `ssz::Encode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
+///
+/// The union selector will be determined based upon the order in which the enum variants are
+/// defined. E.g., the top-most variant in the enum will have a selector of `1`, the variant
+/// beneath it will have a selector of `2` and so on.
+///
+/// # Limitations
+///
+/// Only supports enums where each variant has a single field.
+fn ssz_encode_derive_enum_compatible_union(
+    derive_input: &DeriveInput,
+    enum_data: &DataEnum,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    let patterns: Vec<_> = enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_name = &variant.ident;
+
+            if variant.fields.len() != 1 {
+                panic!("ssz::Encode can only be derived for enums with 1 field per variant");
+            }
+
+            let pattern = quote! {
+                #name::#variant_name(ref inner)
+            };
+            pattern
+        })
+        .collect();
+
+    let union_selectors = compute_compatible_union_selectors(patterns.len());
+
+    let output = quote! {
+        impl #impl_generics ssz::Encode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                false
+            }
+
+            fn ssz_bytes_len(&self) -> usize {
+                match self {
+                    #(
+                        #patterns => inner
+                            .ssz_bytes_len()
+                            .checked_add(1)
+                            .expect("encoded length must be less than usize::max_value"),
+                    )*
+                }
+            }
+
+            fn ssz_append(&self, buf: &mut Vec<u8>) {
+                match self {
+                    #(
+                        #patterns => {
+                            let union_selector: u8 = #union_selectors;
+                            debug_assert!(union_selector > 0 && union_selector <= ssz::MAX_UNION_SELECTOR);
+                            buf.push(union_selector);
+                            inner.ssz_append(buf)
+                        },
+                    )*
+                }
+            }
+        }
+    };
+    output.into()
+}
+
 /// Derive `ssz::Decode` for a struct or enum.
 #[proc_macro_derive(Decode, attributes(ssz))]
 pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
@@ -739,6 +835,9 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
             EnumBehaviour::Transparent => ssz_decode_derive_enum_transparent(&item, data),
+            EnumBehaviour::CompatibleUnion => {
+                ssz_decode_derive_enum_compatible_union(&item, data)
+            }
         },
     }
 }
@@ -1082,6 +1181,67 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     output.into()
 }
 
+/// Derive `ssz::Decode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
+fn ssz_decode_derive_enum_compatible_union(
+    derive_input: &DeriveInput,
+    enum_data: &DataEnum,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_name = &variant.ident;
+
+            if variant.fields.len() != 1 {
+                panic!("ssz::Decode can only be derived for enums with 1 field per variant");
+            }
+
+            let constructor = quote! {
+                #name::#variant_name
+            };
+
+            let ty = &(&variant.fields).into_iter().next().unwrap().ty;
+            (constructor, ty)
+        })
+        .unzip();
+
+    let union_selectors = compute_compatible_union_selectors(constructors.len());
+
+    let output = quote! {
+        impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                false
+            }
+
+            fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+                // Sanity check to ensure the definition here does not drift from the one defined in
+                // `ssz`.
+                debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
+
+                if __bytes.is_empty() {
+                    return Err(ssz::DecodeError::OutOfBoundsByte { i: 0 });
+                }
+
+                let selector = __bytes[0];
+                let body = &__bytes[1..];
+
+                match selector {
+                    #(
+                        #union_selectors => {
+                            <#var_types as ssz::Decode>::from_ssz_bytes(body).map(#constructors)
+                        },
+                    )*
+                    other => Err(ssz::DecodeError::UnionSelectorInvalid(other))
+                }
+            }
+        }
+    };
+    output.into()
+}
+
 /// Derive `ssz::Decode` for an enum in the "transparent" method.
 ///
 /// The "transparent" method attempts to decode into an enum by trying to decode each variant in
@@ -1157,6 +1317,29 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
     assert!(
         highest_selector <= MAX_UNION_SELECTOR,
         "union selector {} exceeds limit of {}, enum has too many variants",
+        highest_selector,
+        MAX_UNION_SELECTOR
+    );
+
+    union_selectors
+}
+
+fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
+    let union_selectors = (1..=num_variants)
+        .map(|i| {
+            i.try_into()
+                .expect("compatible union selector exceeds MAX_UNION_SELECTOR (127), union has too many variants")
+        })
+        .collect::<Vec<u8>>();
+
+    let highest_selector = union_selectors
+        .last()
+        .copied()
+        .expect("0-variant union is not permitted");
+
+    assert!(
+        highest_selector <= MAX_UNION_SELECTOR,
+        "compatible union selector {} exceeds limit of {}, enum has too many variants",
         highest_selector,
         MAX_UNION_SELECTOR
     );

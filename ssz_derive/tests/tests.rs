@@ -315,3 +315,91 @@ fn transparent_struct_newtype_skipped_encode_only() {
         &vec![42_u8].as_ssz_bytes(),
     );
 }
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoFixedCompatibleUnion {
+    U8(u8),
+    U16(u16),
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct TwoFixedCompatibleUnionStruct {
+    a: TwoFixedCompatibleUnion,
+}
+
+#[test]
+fn two_fixed_compatible_union() {
+    let eight = TwoFixedCompatibleUnion::U8(1);
+    let sixteen = TwoFixedCompatibleUnion::U16(1);
+
+    // Selectors should be 1 and 2
+    assert_encode_decode(&eight, &[1, 1]);
+    assert_encode_decode(&sixteen, &[2, 1, 0]);
+
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: eight },
+        &[4, 0, 0, 0, 1, 1],
+    );
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: sixteen },
+        &[4, 0, 0, 0, 2, 1, 0],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoVariableCompatibleUnion {
+    A(VariableA),
+    B(VariableB),
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct TwoVariableCompatibleUnionStruct {
+    a: TwoVariableCompatibleUnion,
+}
+
+#[test]
+fn two_variable_compatible_union() {
+    let union_a = TwoVariableCompatibleUnion::A(VariableA {
+        a: 1,
+        b: vec![2, 3],
+    });
+    let union_b = TwoVariableCompatibleUnion::B(VariableB {
+        a: vec![1, 2],
+        b: 3,
+    });
+
+    // Selectors should be 1 and 2
+    assert_encode_decode(&union_a, &[1, 1, 5, 0, 0, 0, 2, 3]);
+    assert_encode_decode(&union_b, &[2, 5, 0, 0, 0, 3, 1, 2]);
+
+    assert_encode_decode(
+        &TwoVariableCompatibleUnionStruct { a: union_a },
+        &[4, 0, 0, 0, 1, 1, 5, 0, 0, 0, 2, 3],
+    );
+    assert_encode_decode(
+        &TwoVariableCompatibleUnionStruct { a: union_b },
+        &[4, 0, 0, 0, 2, 5, 0, 0, 0, 3, 1, 2],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoVecCompatibleUnion {
+    A(Vec<u8>),
+    B(Vec<u8>),
+}
+
+#[test]
+fn two_vec_compatible_union() {
+    // Selectors should be 1 and 2
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![]), &[1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![]), &[2]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0]), &[1, 0]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0]), &[2, 0]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[1, 0, 1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[2, 0, 1]);
+}
