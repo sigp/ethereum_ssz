@@ -134,8 +134,10 @@
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(enum_behaviour = "compatible_union")]
 //! enum CompatibleUnionEnum {
+//!     #[ssz(selector = "1")]
 //!     Foo(u8),
-//!     Bar(Vec<u8>),
+//!     #[ssz(selector = "2")]
+//!     Bar(u8),
 //! }
 //!
 //! assert_eq!(
@@ -143,8 +145,8 @@
 //!     vec![1, 42]
 //! );
 //! assert_eq!(
-//!     CompatibleUnionEnum::from_ssz_bytes(&[2, 42, 42]).unwrap(),
-//!     CompatibleUnionEnum::Bar(vec![42, 42]),
+//!     CompatibleUnionEnum::from_ssz_bytes(&[2, 42]).unwrap(),
+//!     CompatibleUnionEnum::Bar(42),
 //! );
 //!
 //! /// Represented as only the value in the enum variant.
@@ -189,7 +191,7 @@ use darling::{FromDeriveInput, FromMeta};
 use proc_macro::TokenStream;
 use quote::quote;
 use std::convert::TryInto;
-use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Ident, Index};
+use syn::{parse_macro_input, Attribute, DataEnum, DataStruct, DeriveInput, Ident, Index};
 
 /// The highest possible union selector value (higher values are reserved for backwards compatible
 /// extensions).
@@ -216,6 +218,13 @@ struct FieldOpts {
     skip_serializing: bool,
     #[darling(default)]
     skip_deserializing: bool,
+}
+
+/// Variant-level configuration (for enums).
+#[derive(Debug, Default, FromMeta)]
+struct VariantOpts {
+    #[darling(default)]
+    selector: Option<u8>,
 }
 
 enum Procedure<'a> {
@@ -300,6 +309,18 @@ impl<'a> Procedure<'a> {
     }
 }
 
+/// Predicate for determining whether an attribute is a `ssz` attribute.
+fn is_ssz_attr(attr: &Attribute) -> bool {
+    is_attr_with_ident(attr, "ssz")
+}
+
+/// Predicate for determining whether an attribute has the given `ident` as its path.
+fn is_attr_with_ident(attr: &Attribute, ident: &str) -> bool {
+    attr.path()
+        .get_ident()
+        .is_some_and(|attr_ident| *attr_ident == ident)
+}
+
 fn parse_ssz_fields(
     struct_data: &syn::DataStruct,
 ) -> Vec<(&syn::Type, Option<&syn::Ident>, FieldOpts)> {
@@ -313,7 +334,7 @@ fn parse_ssz_fields(
             let field_opts_candidates = field
                 .attrs
                 .iter()
-                .filter(|attr| attr.path().get_ident().is_some_and(|ident| *ident == "ssz"))
+                .filter(|attr| is_ssz_attr(attr))
                 .collect::<Vec<_>>();
 
             if field_opts_candidates.len() > 1 {
@@ -749,6 +770,29 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     output.into()
 }
 
+fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
+    enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let ssz_attrs = variant
+                .attrs
+                .iter()
+                .filter(|attr| is_ssz_attr(attr))
+                .collect::<Vec<_>>();
+
+            if ssz_attrs.len() > 1 {
+                panic!("more than one variant-level \"ssz\" attribute provided");
+            }
+
+            ssz_attrs
+                .first()
+                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
 /// Derive `ssz::Encode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
 ///
 /// The union selector will be determined based upon the order in which the enum variants are
@@ -765,6 +809,13 @@ fn ssz_encode_derive_enum_compatible_union(
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
 
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant compatible union is not supported");
+    }
+
     let patterns: Vec<_> = enum_data
         .variants
         .iter()
@@ -780,9 +831,9 @@ fn ssz_encode_derive_enum_compatible_union(
             };
             pattern
         })
-        .collect();
+        .collect::<Vec<_>>();
 
-    let union_selectors = compute_compatible_union_selectors(patterns.len());
+    let union_selectors = get_compatible_union_selectors(enum_data, &variant_opts);
 
     let output = quote! {
         impl #impl_generics ssz::Encode for #name #ty_generics #where_clause {
@@ -1185,6 +1236,13 @@ fn ssz_decode_derive_enum_compatible_union(
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
 
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant compatible union is not supported");
+    }
+
     let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
         .variants
         .iter()
@@ -1204,7 +1262,7 @@ fn ssz_decode_derive_enum_compatible_union(
         })
         .unzip();
 
-    let union_selectors = compute_compatible_union_selectors(constructors.len());
+    let union_selectors = get_compatible_union_selectors(enum_data, &variant_opts);
 
     let output = quote! {
         impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
@@ -1224,6 +1282,8 @@ fn ssz_decode_derive_enum_compatible_union(
                 let selector = __bytes[0];
                 let body = &__bytes[1..];
 
+                // FIXME(sproul): this code assumes selectors are in ascending order, we should
+                // either remove this assumption or add a check for it
                 match selector {
                     #(
                         #union_selectors => {
@@ -1320,25 +1380,23 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
     union_selectors
 }
 
-fn compute_compatible_union_selectors(num_variants: usize) -> Vec<u8> {
-    let union_selectors = (1..=num_variants)
-        .map(|i| {
-            i.try_into()
-                .expect("compatible union selector exceeds MAX_UNION_SELECTOR (127), union has too many variants")
+fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantOpts]) -> Vec<u8> {
+    enum_data
+        .variants
+        .iter()
+        .zip(variant_opts.iter())
+        .map(|(variant, variant_opt)| {
+            let variant_name = &variant.ident;
+            let Some(selector) = variant_opt.selector else {
+                panic!("you must define a selector for variant \"{variant_name}\"");
+            };
+            if selector == 0 || selector > MAX_UNION_SELECTOR {
+                panic!(
+                    "selector = {selector} for variant \"{variant_name}\" is illegal in a \
+                     compatible union"
+                );
+            }
+            selector
         })
-        .collect::<Vec<u8>>();
-
-    let highest_selector = union_selectors
-        .last()
-        .copied()
-        .expect("0-variant union is not permitted");
-
-    assert!(
-        highest_selector <= MAX_UNION_SELECTOR,
-        "compatible union selector {} exceeds limit of {}, enum has too many variants",
-        highest_selector,
-        MAX_UNION_SELECTOR
-    );
-
-    union_selectors
+        .collect()
 }
