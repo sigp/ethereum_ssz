@@ -345,9 +345,7 @@ pub fn ssz_encode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Transparent => ssz_encode_derive_enum_transparent(&item, data),
             EnumBehaviour::Union => ssz_encode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_encode_derive_enum_tag(&item, data),
-            EnumBehaviour::CompatibleUnion => {
-                ssz_encode_derive_enum_compatible_union(&item, data)
-            }
+            EnumBehaviour::CompatibleUnion => ssz_encode_derive_enum_compatible_union(&item, data),
         },
     }
 }
@@ -835,9 +833,7 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
             EnumBehaviour::Transparent => ssz_decode_derive_enum_transparent(&item, data),
-            EnumBehaviour::CompatibleUnion => {
-                ssz_decode_derive_enum_compatible_union(&item, data)
-            }
+            EnumBehaviour::CompatibleUnion => ssz_decode_derive_enum_compatible_union(&item, data),
         },
     }
 }
