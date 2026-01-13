@@ -717,6 +717,20 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
 
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    // Check that selectors are NOT set.
+    // We could eventually remove this restriction: https://github.com/sigp/ethereum_ssz/issues/70
+    assert!(
+        variant_opts.iter().all(|opt| opt.selector.is_none()),
+        "specifying the selector in a regular union is not supported"
+    );
+
     let patterns: Vec<_> = enum_data
         .variants
         .iter()
