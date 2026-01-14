@@ -221,7 +221,11 @@ struct FieldOpts {
 }
 
 /// Variant-level configuration (for enums).
-#[derive(Debug, Default, FromMeta)]
+///
+/// These attributes NEED to be kept in sync with `tree_hash` because both crates try to read
+/// each others attributes to avoid mandatory duplication. In future this might mean parsing some
+/// tree_hash-only attributes here and then ignoring them.
+#[derive(Debug, Default, PartialEq, FromMeta)]
 struct VariantOpts {
     #[darling(default)]
     selector: Option<u8>,
@@ -307,6 +311,11 @@ impl<'a> Procedure<'a> {
             _ => panic!("ssz_derive only supports structs and enums"),
         }
     }
+}
+
+/// Predicate for determining whether an attribute is a `tree_hash` attribute.
+fn is_tree_hash_attr(attr: &Attribute) -> bool {
+    is_attr_with_ident(attr, "tree_hash")
 }
 
 /// Predicate for determining whether an attribute is a `ssz` attribute.
@@ -789,20 +798,44 @@ fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
         .variants
         .iter()
         .map(|variant| {
+            let tree_hash_attrs = variant
+                .attrs
+                .iter()
+                .filter(|attr| is_tree_hash_attr(attr))
+                .collect::<Vec<_>>();
             let ssz_attrs = variant
                 .attrs
                 .iter()
                 .filter(|attr| is_ssz_attr(attr))
                 .collect::<Vec<_>>();
 
-            if ssz_attrs.len() > 1 {
+            // Check for duplicate `ssz` attributes.
+            // Checking duplicate `tree_hash` attributes is the job of the `tree_hash_derive` macro.
+            if tree_hash_attrs.len() > 1 {
                 panic!("more than one variant-level \"ssz\" attribute provided");
             }
 
-            ssz_attrs
+            let tree_hash_opts = tree_hash_attrs
                 .first()
-                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap())
-                .unwrap_or_default()
+                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap());
+
+            let ssz_opts = ssz_attrs
+                .first()
+                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap());
+
+            // Check consistency with tree_hash opts, or fall back to tree_hash attribute if ssz
+            // attribute is absent.
+            match (tree_hash_opts, ssz_opts) {
+                (Some(tree_hash), Some(ssz)) => {
+                    assert_eq!(
+                        tree_hash, ssz,
+                        "inconsistent \"ssz\" and \"tree_hash\" attributes"
+                    );
+                    tree_hash
+                }
+                (Some(attr), None) | (None, Some(attr)) => attr,
+                (None, None) => VariantOpts::default(),
+            }
         })
         .collect()
 }
