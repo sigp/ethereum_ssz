@@ -18,17 +18,17 @@ arbitrary = ["dep:arbitrary", "alloy-primitives/arbitrary"]
 context_deserialize = ["dep:context_deserialize"]
 
 [dependencies]
-alloy-primitives = "1.0"
-ethereum_serde_utils = "0.8.0"
-smallvec = { version = "1.6.1", features = ["const_generics"] }
-itertools = "0.13.0"
-serde = "1.0.0"
-serde_derive = "1.0.0"
-typenum = "1.12.0"
-arbitrary = { version = "1.0", features = ["derive"], optional = true }
+alloy-primitives = "1"
+ethereum_serde_utils = "0.8"
+smallvec = { version = "1", features = ["const_generics"] }
+itertools = "0.14"
+serde = "1"
+serde_derive = "1"
+typenum = "1"
+arbitrary = { version = "1", features = ["derive"], optional = true }
 context_deserialize = { version = "0.2", optional = true }
 
 [dev-dependencies]
-alloy-primitives = { version = "1.0", features = ["getrandom"] }
-ethereum_ssz_derive = { version = "0.10.0", path = "../ssz_derive" }
-serde_json = "1.0.0"
+alloy-primitives = { version = "1", features = ["getrandom"] }
+ethereum_ssz_derive = { version = "0.10", path = "../ssz_derive" }
+serde_json = "1"
