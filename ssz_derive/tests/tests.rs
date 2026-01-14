@@ -370,3 +370,18 @@ fn two_vec_compatible_union() {
     assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[1, 0, 1]);
     assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[2, 0, 1]);
 }
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum CompatibleUnionOutOfOrderSelectors {
+    #[ssz(selector = "2")]
+    A(u8),
+    #[ssz(selector = "1")]
+    B(u8),
+}
+
+#[test]
+fn compatible_union_out_of_order() {
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::A(20), &[2, 20]);
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::B(10), &[1, 10]);
+}

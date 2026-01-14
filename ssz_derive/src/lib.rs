@@ -1296,8 +1296,6 @@ fn ssz_decode_derive_enum_compatible_union(
                 let selector = __bytes[0];
                 let body = &__bytes[1..];
 
-                // FIXME(sproul): this code assumes selectors are in ascending order, we should
-                // either remove this assumption or add a check for it
                 match selector {
                     #(
                         #union_selectors => {
