@@ -315,3 +315,73 @@ fn transparent_struct_newtype_skipped_encode_only() {
         &vec![42_u8].as_ssz_bytes(),
     );
 }
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoFixedCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(u8),
+    #[ssz(selector = "2")]
+    B(u8),
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct TwoFixedCompatibleUnionStruct {
+    a: TwoFixedCompatibleUnion,
+}
+
+#[test]
+fn two_fixed_compatible_union() {
+    let eight = TwoFixedCompatibleUnion::A(8);
+    let sixteen = TwoFixedCompatibleUnion::B(16);
+
+    // Selectors should be 1 and 2
+    assert_encode_decode(&eight, &[1, 8]);
+    assert_encode_decode(&sixteen, &[2, 16]);
+
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: eight },
+        &[4, 0, 0, 0, 1, 8],
+    );
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: sixteen },
+        &[4, 0, 0, 0, 2, 16],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoVecCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(Vec<u8>),
+    #[ssz(selector = "2")]
+    B(Vec<u8>),
+}
+
+#[test]
+fn two_vec_compatible_union() {
+    // Selectors should be 1 and 2
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![]), &[1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![]), &[2]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0]), &[1, 0]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0]), &[2, 0]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[1, 0, 1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[2, 0, 1]);
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum CompatibleUnionOutOfOrderSelectors {
+    #[ssz(selector = "2")]
+    A(u8),
+    #[ssz(selector = "1")]
+    B(u8),
+}
+
+#[test]
+fn compatible_union_out_of_order() {
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::A(20), &[2, 20]);
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::B(10), &[1, 10]);
+}
