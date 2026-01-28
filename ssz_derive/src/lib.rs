@@ -811,7 +811,7 @@ fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
 
             // Check for duplicate `ssz` attributes.
             // Checking duplicate `tree_hash` attributes is the job of the `tree_hash_derive` macro.
-            if tree_hash_attrs.len() > 1 {
+            if ssz_attrs.len() > 1 {
                 panic!("more than one variant-level \"ssz\" attribute provided");
             }
 
