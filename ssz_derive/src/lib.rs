@@ -190,7 +190,7 @@
 use darling::{FromDeriveInput, FromMeta};
 use proc_macro::TokenStream;
 use quote::quote;
-use std::convert::TryInto;
+use std::{collections::HashSet, convert::TryInto};
 use syn::{parse_macro_input, Attribute, DataEnum, DataStruct, DeriveInput, Ident, Index};
 
 /// The highest possible union selector value (higher values are reserved for backwards compatible
@@ -1426,6 +1426,8 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
 }
 
 fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantOpts]) -> Vec<u8> {
+    let mut seen_selectors = HashSet::new();
+
     enum_data
         .variants
         .iter()
@@ -1439,6 +1441,12 @@ fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantO
                 panic!(
                     "selector = {selector} for variant \"{variant_name}\" is illegal in a \
                      compatible union"
+                );
+            }
+            if !seen_selectors.insert(selector) {
+                panic!(
+                    "duplicate selector = {selector} for variant \"{variant_name}\", \
+                     selectors must be unique"
                 );
             }
             selector
