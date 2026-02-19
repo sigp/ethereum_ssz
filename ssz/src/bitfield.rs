@@ -544,6 +544,18 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
             })
         }
     }
+
+    /// Create a new Bitfield with each bit mapped to the return value of the passed closure.
+    pub fn map<F>(&self, mut f: F) -> Self
+    where
+        F: FnMut(bool) -> bool,
+    {
+        let mut result = self.clone();
+        for (idx, bit) in self.iter().enumerate() {
+            result.set(idx, f(bit)).expect("Length guaranteed to be correct");
+        }
+        result
+    }
 }
 
 impl<T> Eq for Bitfield<T> {}
