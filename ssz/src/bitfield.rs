@@ -953,6 +953,42 @@ mod bitvector {
         let bitvec = BitVector16::from_bytes(smallvec![0b0010_1011, 0b0010_1110]).unwrap();
         assert_eq!("1101010001110100", bitvec.to_string());
     }
+
+    #[test]
+    fn map() {
+        // Test identity mapping
+        let a = BitVector16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        assert_eq!(a.map(|b| b), a);
+
+        // Test negation mapping (like not)
+        let b = BitVector8::new();
+        let mut expected = BitVector8::new();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(b.map(|bit| !bit), expected);
+
+        // Test mapping all to true
+        let c = BitVector8::from_raw_bytes(smallvec![0b1010_0101], 8).unwrap();
+        let mut all_true = BitVector8::new();
+        for i in 0..8 {
+            all_true.set(i, true).unwrap();
+        }
+        assert_eq!(c.map(|_| true), all_true);
+
+        // Test mapping all to false
+        let d = BitVector8::from_raw_bytes(smallvec![0b1111_1111], 8).unwrap();
+        assert_eq!(d.map(|_| false), BitVector8::new());
+
+        // Test with partial byte (4 bits)
+        let e = BitVector4::from_raw_bytes(smallvec![0b0000_1010], 4).unwrap();
+        let expected_e = BitVector4::from_raw_bytes(smallvec![0b0000_0101], 4).unwrap();
+        assert_eq!(e.map(|bit| !bit), expected_e);
+
+        // Test with zero-length bitvector
+        let f = BitVector0::new();
+        assert_eq!(f.map(|_| true), f);
+    }
 }
 
 #[cfg(test)]
@@ -1496,5 +1532,53 @@ mod bitlist {
     fn display() {
         let bitlist = BitList1024::from_raw_bytes(smallvec![0b0011_1111, 0b0001_0101], 15).unwrap();
         assert_eq!("111111001010100", bitlist.to_string());
+    }
+
+    #[test]
+    fn map() {
+        // Test identity mapping
+        let a = BitList16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        assert_eq!(a.map(|b| b), a);
+
+        // Test negation mapping (like not)
+        let b = BitList8::with_capacity(8).unwrap();
+        let mut expected = BitList8::with_capacity(8).unwrap();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(b.map(|bit| !bit), expected);
+
+        // Test mapping all to true
+        let c = BitList8::from_raw_bytes(smallvec![0b1010_0101], 8).unwrap();
+        let mut all_true = BitList8::with_capacity(8).unwrap();
+        for i in 0..8 {
+            all_true.set(i, true).unwrap();
+        }
+        assert_eq!(c.map(|_| true), all_true);
+
+        // Test mapping all to false
+        let d = BitList8::from_raw_bytes(smallvec![0b1111_1111], 8).unwrap();
+        assert_eq!(d.map(|_| false), BitList8::with_capacity(8).unwrap());
+
+        // Test with partial byte (5 bits)
+        let e = BitList8::from_raw_bytes(smallvec![0b0001_1010], 5).unwrap();
+        let expected_e = BitList8::from_raw_bytes(smallvec![0b0000_0101], 5).unwrap();
+        assert_eq!(e.map(|bit| !bit), expected_e);
+
+        // Test with zero-length bitlist
+        let f = BitList0::with_capacity(0).unwrap();
+        assert_eq!(f.map(|_| true), f);
+
+        // Test with longer bitlist
+        let mut g = BitList16::with_capacity(12).unwrap();
+        for i in 0..12 {
+            if i % 2 == 0 {
+                g.set(i, true).unwrap();
+            }
+        }
+        let mapped_g = g.map(|bit| !bit);
+        for i in 0..12 {
+            assert_eq!(mapped_g.get(i).unwrap(), i % 2 != 0);
+        }
     }
 }
