@@ -523,6 +523,25 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
         }
     }
 
+    /// Perform a bitwise-not operation on the bits in `self`.
+    pub fn not(&self) -> Self {
+        let mut result = self.clone();
+        result.not_inplace();
+        result
+    }
+
+    /// Perform a bitwise-not operation on the bits in `self`.
+    pub fn not_inplace(&mut self) {
+        for byte in self.bytes.iter_mut() {
+            *byte = !*byte;
+        }
+        // Mask out any bits higher than `self.len`.
+        if let Some(last_byte) = self.bytes.last_mut() {
+            let mask = 0xFF >> self.len % 8;
+            *last_byte &= mask;
+        }
+    }
+
     /// Shift the bits to higher indices, filling the lower indices with zeroes.
     ///
     /// The amount to shift by, `n`, must be less than or equal to `self.len()`.
