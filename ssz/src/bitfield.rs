@@ -692,9 +692,17 @@ impl<'de, N: Unsigned + Clone> Deserialize<'de> for Bitfield<Fixed<N>> {
 #[cfg(feature = "arbitrary")]
 impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Fixed<N>> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let size = N::to_usize();
-        let mut vec = smallvec![0u8; size];
+        // N is the number of bits.
+        let num_bytes = bytes_for_bit_len(N::to_usize());
+        let mut vec = smallvec![0u8; num_bytes];
         u.fill_buffer(&mut vec)?;
+        // Mask out any excess bits in the last byte.
+        let used_bits = N::to_usize() % 8;
+        if used_bits > 0 {
+            if let Some(last) = vec.last_mut() {
+                *last &= (1u8 << used_bits) - 1;
+            }
+        }
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
 }
@@ -702,11 +710,25 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Fixed<N>> {
 #[cfg(feature = "arbitrary")]
 impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Variable<N>> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let max_size = N::to_usize();
-        let rand = usize::arbitrary(u)?;
-        let size = std::cmp::min(rand, max_size);
-        let mut vec = smallvec![0u8; size];
+        let max_len = N::to_usize();
+        if max_len == 0 {
+            return Err(arbitrary::Error::IncorrectFormat);
+        }
+        // Pick a random data length in 1..=N.
+        let len = u.int_in_range(1..=max_len)?;
+        // The encoding requires len data bits + 1 length bit.
+        let total_bits = len + 1;
+        let num_bytes = bytes_for_bit_len(total_bits);
+        let mut vec = smallvec![0u8; num_bytes];
         u.fill_buffer(&mut vec)?;
+        // Place the length bit at position `len` and clear everything above it
+        // in the last byte. Bits below the length bit are random data.
+        let length_bit_byte = len / 8;
+        let length_bit_pos = len % 8;
+        // Clear bytes at or above `length_bit_pos`.
+        vec[length_bit_byte] &= (1u8 << length_bit_pos) - 1;
+        // Set the length bit.
+        vec[length_bit_byte] |= 1u8 << length_bit_pos;
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
 }
