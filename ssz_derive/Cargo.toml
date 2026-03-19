@@ -21,4 +21,4 @@ quote = "1"
 darling = "0.23"
 
 [dev-dependencies]
-ethereum_ssz = { path = "../ssz" }
+ethereum_ssz.workspace = true

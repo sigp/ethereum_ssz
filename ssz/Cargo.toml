@@ -30,5 +30,5 @@ context_deserialize = { version = "0.2", optional = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "1", features = ["getrandom"] }
-ethereum_ssz_derive = { version = "0.10", path = "../ssz_derive" }
+ethereum_ssz_derive.workspace = true
 serde_json = "1"
