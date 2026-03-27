@@ -6,6 +6,7 @@ use serde_utils::hex::{encode as hex_encode, PrefixedHexVisitor};
 use smallvec::{smallvec, SmallVec, ToSmallVec};
 use typenum::Unsigned;
 pub mod bitvector_dynamic;
+pub mod progressive;
 
 /// Returned when an item encounters an error.
 #[derive(PartialEq, Debug, Clone)]
