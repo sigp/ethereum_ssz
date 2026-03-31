@@ -4,3 +4,16 @@ members = [
     "ssz_derive",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "0.10.1"
+edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/sigp/ethereum_ssz"
+keywords = ["ethereum"]
+categories = ["cryptography::cryptocurrencies"]
+
+[workspace.dependencies]
+ethereum_ssz = { version = "0.10.1", path = "ssz" }
+ethereum_ssz_derive = { version = "0.10.1", path = "ssz_derive" }
