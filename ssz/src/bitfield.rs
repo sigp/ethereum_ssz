@@ -563,10 +563,8 @@ impl<T> core::hash::Hash for Bitfield<T> {
 }
 
 /// Returns the minimum required bytes to represent a given number of bits.
-///
-/// `bit_len == 0` requires a single byte.
 fn bytes_for_bit_len(bit_len: usize) -> usize {
-    std::cmp::max(1, bit_len.div_ceil(8))
+    bit_len.div_ceil(8)
 }
 
 /// An iterator over the bits in a `Bitfield`.
