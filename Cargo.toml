@@ -6,7 +6,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.10.2"
+version = "0.10.3"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -15,5 +15,5 @@ keywords = ["ethereum"]
 categories = ["cryptography::cryptocurrencies"]
 
 [workspace.dependencies]
-ethereum_ssz = { version = "0.10.2", path = "ssz" }
-ethereum_ssz_derive = { version = "0.10.2", path = "ssz_derive" }
+ethereum_ssz = { version = "0.10.3", path = "ssz" }
+ethereum_ssz_derive = { version = "0.10.3", path = "ssz_derive" }
