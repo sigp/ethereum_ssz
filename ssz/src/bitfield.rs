@@ -757,6 +757,8 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Variable<N>> {
 
 #[cfg(test)]
 mod bitvector {
+    use std::str::RSplitTerminator;
+
     use super::*;
     use crate::BitVector;
 
@@ -966,6 +968,10 @@ mod bitvector {
 
     #[test]
     fn not() {
+        // Test empty
+        let empty = BitVector0::new();
+        assert_eq(empty.not(), empty);
+
         // Test with all zeros
         let a = BitVector8::new();
         let mut expected = BitVector8::new();
