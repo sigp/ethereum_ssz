@@ -757,8 +757,6 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Variable<N>> {
 
 #[cfg(test)]
 mod bitvector {
-    use std::str::RSplitTerminator;
-
     use super::*;
     use crate::BitVector;
 
