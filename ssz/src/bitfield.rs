@@ -968,7 +968,7 @@ mod bitvector {
     fn not() {
         // Test empty
         let empty = BitVector0::new();
-        assert_eq(empty.not(), empty);
+        assert_eq!(empty.not(), empty);
 
         // Test with all zeros
         let a = BitVector8::new();
