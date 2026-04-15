@@ -540,7 +540,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
         }
         // Mask out any bits higher than `self.len`.
         if let Some(last_byte) = self.bytes.last_mut() {
-            let mask = 0xFF >> self.len % 8;
+            let mask = 0xFF >> (self.len % 8);
             *last_byte &= mask;
         }
     }
