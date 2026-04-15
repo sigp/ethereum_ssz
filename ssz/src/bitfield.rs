@@ -980,7 +980,8 @@ mod bitvector {
 
         // Test with mixed pattern
         let c = BitVector16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
-        let expected_c = BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        let expected_c =
+            BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
         assert_eq!(c.not(), expected_c);
 
         // Test with partial byte (4 bits)
@@ -1013,7 +1014,8 @@ mod bitvector {
         // Test with mixed pattern
         let mut c = BitVector16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
         c.not_inplace();
-        let expected_c = BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        let expected_c =
+            BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
         assert_eq!(c, expected_c);
 
         // Test with partial byte (4 bits)
@@ -1583,7 +1585,8 @@ mod bitlist {
 
         // Test with mixed pattern
         let c = BitList16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
-        let expected_c = BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        let expected_c =
+            BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
         assert_eq!(c.not(), expected_c);
 
         // Test with partial byte (5 bits)
@@ -1620,7 +1623,8 @@ mod bitlist {
         // Test with mixed pattern
         let mut c = BitList16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
         c.not_inplace();
-        let expected_c = BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        let expected_c =
+            BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
         assert_eq!(c, expected_c);
 
         // Test with partial byte (5 bits)
