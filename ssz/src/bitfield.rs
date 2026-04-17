@@ -523,6 +523,28 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
         }
     }
 
+    /// Perform a bitwise-not operation on the bits in `self`.
+    pub fn not(&self) -> Self {
+        let mut result = self.clone();
+        result.not_inplace();
+        result
+    }
+
+    /// Perform a bitwise-not operation on the bits in `self`.
+    pub fn not_inplace(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+        for byte in self.bytes.iter_mut() {
+            *byte = !*byte;
+        }
+        // Mask out any bits higher than `self.len`.
+        if let Some(last_byte) = self.bytes.last_mut() {
+            let mask = 0xFF >> (self.len % 8);
+            *last_byte &= mask;
+        }
+    }
+
     /// Shift the bits to higher indices, filling the lower indices with zeroes.
     ///
     /// The amount to shift by, `n`, must be less than or equal to `self.len()`.
@@ -940,6 +962,71 @@ mod bitvector {
     fn display() {
         let bitvec = BitVector16::from_bytes(smallvec![0b0010_1011, 0b0010_1110]).unwrap();
         assert_eq!("1101010001110100", bitvec.to_string());
+    }
+
+    #[test]
+    fn not() {
+        // Test empty
+        let empty = BitVector0::new();
+        assert_eq!(empty.not(), empty);
+
+        // Test with all zeros
+        let a = BitVector8::new();
+        let mut expected = BitVector8::new();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(a.not(), expected);
+
+        // Test with all ones
+        let b = expected.clone();
+        assert_eq!(b.not(), BitVector8::new());
+
+        // Test with mixed pattern
+        let c = BitVector16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        let expected_c =
+            BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        assert_eq!(c.not(), expected_c);
+
+        // Test with partial byte (4 bits)
+        let d = BitVector4::from_raw_bytes(smallvec![0b0000_1010], 4).unwrap();
+        let expected_d = BitVector4::from_raw_bytes(smallvec![0b0000_0101], 4).unwrap();
+        assert_eq!(d.not(), expected_d);
+
+        // Test that masking works correctly for partial bytes
+        let e = BitVector4::from_raw_bytes(smallvec![0b0000_1111], 4).unwrap();
+        let expected_e = BitVector4::from_raw_bytes(smallvec![0b0000_0000], 4).unwrap();
+        assert_eq!(e.not(), expected_e);
+    }
+
+    #[test]
+    fn not_inplace() {
+        // Test with all zeros
+        let mut a = BitVector8::new();
+        a.not_inplace();
+        let mut expected = BitVector8::new();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(a, expected);
+
+        // Test with all ones
+        let mut b = expected.clone();
+        b.not_inplace();
+        assert_eq!(b, BitVector8::new());
+
+        // Test with mixed pattern
+        let mut c = BitVector16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        c.not_inplace();
+        let expected_c =
+            BitVector16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        assert_eq!(c, expected_c);
+
+        // Test with partial byte (4 bits)
+        let mut d = BitVector4::from_raw_bytes(smallvec![0b0000_1010], 4).unwrap();
+        d.not_inplace();
+        let expected_d = BitVector4::from_raw_bytes(smallvec![0b0000_0101], 4).unwrap();
+        assert_eq!(d, expected_d);
     }
 }
 
@@ -1484,5 +1571,76 @@ mod bitlist {
     fn display() {
         let bitlist = BitList1024::from_raw_bytes(smallvec![0b0011_1111, 0b0001_0101], 15).unwrap();
         assert_eq!("111111001010100", bitlist.to_string());
+    }
+
+    #[test]
+    fn not() {
+        // Test with all zeros
+        let a = BitList8::with_capacity(8).unwrap();
+        let mut expected = BitList8::with_capacity(8).unwrap();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(a.not(), expected);
+
+        // Test with all ones
+        let b = expected.clone();
+        assert_eq!(b.not(), BitList8::with_capacity(8).unwrap());
+
+        // Test with mixed pattern
+        let c = BitList16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        let expected_c =
+            BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        assert_eq!(c.not(), expected_c);
+
+        // Test with partial byte (5 bits)
+        let d = BitList8::from_raw_bytes(smallvec![0b0001_1010], 5).unwrap();
+        let expected_d = BitList8::from_raw_bytes(smallvec![0b0000_0101], 5).unwrap();
+        assert_eq!(d.not(), expected_d);
+
+        // Test that masking works correctly for partial bytes
+        let e = BitList8::from_raw_bytes(smallvec![0b0001_1111], 5).unwrap();
+        let expected_e = BitList8::from_raw_bytes(smallvec![0b0000_0000], 5).unwrap();
+        assert_eq!(e.not(), expected_e);
+
+        // Test with zero-length bitlist
+        let f = BitList0::with_capacity(0).unwrap();
+        assert_eq!(f.not(), f);
+    }
+
+    #[test]
+    fn not_inplace() {
+        // Test with all zeros
+        let mut a = BitList8::with_capacity(8).unwrap();
+        a.not_inplace();
+        let mut expected = BitList8::with_capacity(8).unwrap();
+        for i in 0..8 {
+            expected.set(i, true).unwrap();
+        }
+        assert_eq!(a, expected);
+
+        // Test with all ones
+        let mut b = expected.clone();
+        b.not_inplace();
+        assert_eq!(b, BitList8::with_capacity(8).unwrap());
+
+        // Test with mixed pattern
+        let mut c = BitList16::from_raw_bytes(smallvec![0b1100_1010, 0b0011_0101], 16).unwrap();
+        c.not_inplace();
+        let expected_c =
+            BitList16::from_raw_bytes(smallvec![0b0011_0101, 0b1100_1010], 16).unwrap();
+        assert_eq!(c, expected_c);
+
+        // Test with partial byte (5 bits)
+        let mut d = BitList8::from_raw_bytes(smallvec![0b0001_1010], 5).unwrap();
+        d.not_inplace();
+        let expected_d = BitList8::from_raw_bytes(smallvec![0b0000_0101], 5).unwrap();
+        assert_eq!(d, expected_d);
+
+        // Test with zero-length bitlist
+        let mut f = BitList0::with_capacity(0).unwrap();
+        let expected_f = f.clone();
+        f.not_inplace();
+        assert_eq!(f, expected_f);
     }
 }
