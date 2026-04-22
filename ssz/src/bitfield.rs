@@ -461,7 +461,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
             })
         } else {
             // Ensure there are no bits higher than `bit_len` that are set to true.
-            let (mask, _) = u8::MAX.overflowing_shr(8 - (bit_len as u32 % 8));
+            let mask = last_byte_mask(bit_len);
 
             if (bytes.last().expect("Guarded against empty bytes") & !mask) == 0 {
                 Ok(Self {
@@ -523,7 +523,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
         }
     }
 
-    /// Perform a bitwise-not operation on the bits in `self`.
+    /// Perform a bitwise-not operation on the bits in `self`. Creates a new Bitfield.
     pub fn not(&self) -> Self {
         let mut result = self.clone();
         result.not_inplace();
@@ -532,16 +532,12 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
 
     /// Perform a bitwise-not operation on the bits in `self`.
     pub fn not_inplace(&mut self) {
-        if self.len == 0 {
-            return;
-        }
         for byte in self.bytes.iter_mut() {
             *byte = !*byte;
         }
         // Mask out any bits higher than `self.len`.
         if let Some(last_byte) = self.bytes.last_mut() {
-            let mask = 0xFF >> (self.len % 8);
-            *last_byte &= mask;
+            *last_byte &= last_byte_mask(self.len);
         }
     }
 
@@ -566,6 +562,18 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
             })
         }
     }
+}
+
+/// Return the bitmask appropriate for the last byte of the internal representation for a bitfield
+/// of length `len`. Notably, this function also returns the correct mask for length zero.
+///
+/// This should be applied via bitwise AND.
+fn last_byte_mask(len: usize) -> u8 {
+    // If the length is zero, the last byte is always zero.
+    if len == 0 {
+        return 0;
+    }
+    u8::MAX.wrapping_shr((8 - (len % 8)) as u32)
 }
 
 impl<T> Eq for Bitfield<T> {}
@@ -719,11 +727,8 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Fixed<N>> {
         let mut vec = smallvec![0u8; num_bytes];
         u.fill_buffer(&mut vec)?;
         // Mask out any excess bits in the last byte.
-        let used_bits = N::to_usize() % 8;
-        if used_bits > 0 {
-            if let Some(last) = vec.last_mut() {
-                *last &= (1u8 << used_bits) - 1;
-            }
+        if let Some(last) = vec.last_mut() {
+            *last &= last_byte_mask(self.len);
         }
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
@@ -748,7 +753,7 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Variable<N>> {
         let length_bit_byte = len / 8;
         let length_bit_pos = len % 8;
         // Clear bytes at or above `length_bit_pos`.
-        vec[length_bit_byte] &= (1u8 << length_bit_pos) - 1;
+        vec[length_bit_byte] &= last_byte_mask(len);
         // Set the length bit.
         vec[length_bit_byte] |= 1u8 << length_bit_pos;
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
@@ -1602,10 +1607,13 @@ mod bitlist {
         let e = BitList8::from_raw_bytes(smallvec![0b0001_1111], 5).unwrap();
         let expected_e = BitList8::from_raw_bytes(smallvec![0b0000_0000], 5).unwrap();
         assert_eq!(e.not(), expected_e);
+        let f = BitList8::from_raw_bytes(smallvec![0b0000_0001], 5).unwrap();
+        let expected_f = BitList8::from_raw_bytes(smallvec![0b0001_1110], 5).unwrap();
+        assert_eq!(f.not(), expected_f);
 
         // Test with zero-length bitlist
-        let f = BitList0::with_capacity(0).unwrap();
-        assert_eq!(f.not(), f);
+        let g = BitList0::with_capacity(0).unwrap();
+        assert_eq!(g.not(), g);
     }
 
     #[test]
