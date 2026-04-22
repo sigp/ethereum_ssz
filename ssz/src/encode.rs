@@ -37,7 +37,7 @@ pub trait Encode {
     ///
     /// The default implementation of this method should suffice for most cases.
     fn as_ssz_bytes(&self) -> Vec<u8> {
-        let mut buf = vec![];
+        let mut buf = Vec::with_capacity(self.ssz_bytes_len());
 
         self.ssz_append(&mut buf);
 
