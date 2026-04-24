@@ -728,7 +728,7 @@ impl<N: 'static + Unsigned> arbitrary::Arbitrary<'_> for Bitfield<Fixed<N>> {
         u.fill_buffer(&mut vec)?;
         // Mask out any excess bits in the last byte.
         if let Some(last) = vec.last_mut() {
-            *last &= last_byte_mask(self.len);
+            *last &= last_byte_mask(N::to_usize());
         }
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
