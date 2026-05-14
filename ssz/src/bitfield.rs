@@ -275,6 +275,13 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
 
         Ok(resized)
     }
+
+    /// Returns a clone of the bitfield with all bits set to false.
+    ///
+    /// Compared to `with_capacity`, this is infallible.
+    pub fn clone_zeroed(&self) -> Self {
+        Self::with_capacity(self.len()).expect("`len` is guaranteed to be `N` or less")
+    }
 }
 
 impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
@@ -1570,6 +1577,30 @@ mod bitlist {
     fn over_capacity_err() {
         let e = BitList8::with_capacity(9).expect_err("over-sized bit list");
         assert_eq!(e, Error::OutOfBounds { i: 9, len: 8 });
+    }
+
+    #[test]
+    fn clone_zeroed() {
+        let mut bitfield = BitList1024::with_capacity(16).unwrap();
+        bitfield.set(0, true).unwrap();
+        bitfield.set(5, true).unwrap();
+        bitfield.set(15, true).unwrap();
+
+        let zeroed = bitfield.clone_zeroed();
+        assert_eq!(zeroed.len(), 16);
+        assert!(zeroed.is_zero());
+
+        let mut bitfield = BitList1::with_capacity(1).unwrap();
+        bitfield.set(0, true).unwrap();
+
+        let zeroed = bitfield.clone_zeroed();
+        assert_eq!(zeroed.len(), 1);
+        assert!(zeroed.is_zero());
+
+        let empty = BitList0::with_capacity(0).unwrap();
+        let zeroed_empty = empty.clone_zeroed();
+        assert_eq!(zeroed_empty.len(), 0);
+        assert!(zeroed_empty.is_zero());
     }
 
     #[test]
