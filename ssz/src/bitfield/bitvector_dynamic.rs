@@ -399,6 +399,72 @@ mod dynamic_bitfield_tests {
     }
 
     #[test]
+    fn test_not() -> Result<(), Error> {
+        // Test with all zeros -> all ones
+        let a = BitVectorDynamic::new(8)?;
+        let mut expected = BitVectorDynamic::new(8)?;
+        for i in 0..8 {
+            expected.set(i, true)?;
+        }
+        assert_eq!(a.not(), expected);
+
+        // Test with all ones -> all zeros
+        let b = expected.clone();
+        assert_eq!(b.not(), BitVectorDynamic::new(8)?);
+
+        // Test with mixed pattern (16 bits)
+        let c = BitVectorDynamic::from_bytes_with_len(smallvec![0b1100_1010, 0b0011_0101], 16)?;
+        let expected_c =
+            BitVectorDynamic::from_bytes_with_len(smallvec![0b0011_0101, 0b1100_1010], 16)?;
+        assert_eq!(c.not(), expected_c);
+
+        // Test double not is identity
+        let mut d = BitVectorDynamic::new(16)?;
+        d.set(0, true)?;
+        d.set(5, true)?;
+        d.set(15, true)?;
+        assert_eq!(d.not().not(), d);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_not_inplace() -> Result<(), Error> {
+        // Test with all zeros
+        let mut a = BitVectorDynamic::new(8)?;
+        a.not_inplace();
+        let mut expected = BitVectorDynamic::new(8)?;
+        for i in 0..8 {
+            expected.set(i, true)?;
+        }
+        assert_eq!(a, expected);
+
+        // Test with all ones
+        let mut b = expected.clone();
+        b.not_inplace();
+        assert_eq!(b, BitVectorDynamic::new(8)?);
+
+        // Test with mixed pattern (16 bits)
+        let mut c = BitVectorDynamic::from_bytes_with_len(smallvec![0b1100_1010, 0b0011_0101], 16)?;
+        c.not_inplace();
+        let expected_c =
+            BitVectorDynamic::from_bytes_with_len(smallvec![0b0011_0101, 0b1100_1010], 16)?;
+        assert_eq!(c, expected_c);
+
+        // Test double not_inplace is identity
+        let mut d = BitVectorDynamic::new(16)?;
+        d.set(0, true)?;
+        d.set(5, true)?;
+        d.set(15, true)?;
+        let original = d.clone();
+        d.not_inplace();
+        d.not_inplace();
+        assert_eq!(d, original);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_ssz_bytes_len() -> Result<(), Error> {
         let bitfield = BitVectorDynamic::new(16)?; // 16 bits = 2 bytes
         assert_eq!(bitfield.ssz_bytes_len(), 2);
