@@ -7,25 +7,20 @@ jobs:
   check-version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check version
         run: |
           TAG_VERSION=$(echo ${GITHUB_REF#refs/tags/v})
           CRATE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
           test "$TAG_VERSION" = "$CRATE_VERSION"
+
   publish:
+    name: Publish to crates.io
     runs-on: ubuntu-latest
     needs: check-version
     env:
-      CARGO_REGISTRY_TOKEN: "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
-      - name: Publish derive crate
-        run: cargo publish -p ethereum_ssz_derive
-      # `ethereum_ssz` depends on `ethereum_ssz_derive` to publish, so sleep a
-      # bit to give crates.io some time to update.
-      - name: Sleep for 3 minutes
-        run: sleep 180s
-        shell: bash
-      - name: Publish main crate
-        run: cargo publish -p ethereum_ssz
+      - uses: actions/checkout@v4
+      - name: Publish all crates in the workspace
+        run: cargo publish --workspace
