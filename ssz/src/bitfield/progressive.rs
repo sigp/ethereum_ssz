@@ -1,7 +1,10 @@
 //! Provides `Bitfield<Progressive>` (ProgressiveBitList)
 //! for encoding and decoding bitlists that have no capacity limit.
 use crate::{
-    bitfield::{bytes_for_bit_len, Bitfield, BitfieldBehaviour, Error, SMALLVEC_LEN},
+    bitfield::{
+        bytes_for_bit_len, variable_bitfield_ssz_append, variable_bitfield_ssz_bytes_len, Bitfield,
+        BitfieldBehaviour, Error, SMALLVEC_LEN,
+    },
     Decode, DecodeError, Encode,
 };
 use core::marker::PhantomData;
@@ -128,11 +131,6 @@ impl Bitfield<Progressive> {
         }
         result
     }
-
-    /// Returns `true` if `self` is a subset of `other` and `false` otherwise.
-    pub fn is_subset(&self, other: &Self) -> bool {
-        self.difference(other).is_zero()
-    }
 }
 
 impl Encode for Bitfield<Progressive> {
@@ -141,13 +139,11 @@ impl Encode for Bitfield<Progressive> {
     }
 
     fn ssz_bytes_len(&self) -> usize {
-        // We could likely do better than turning this into bytes and reading the length, however
-        // it is kept this way for simplicity.
-        self.clone().into_bytes().len()
+        variable_bitfield_ssz_bytes_len(self.len())
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(&self.clone().into_bytes())
+        variable_bitfield_ssz_append(&self.bytes, self.len(), buf)
     }
 }
 
@@ -188,13 +184,20 @@ impl<'de> Deserialize<'de> for Bitfield<Progressive> {
 #[cfg(feature = "arbitrary")]
 impl arbitrary::Arbitrary<'_> for Bitfield<Progressive> {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        // Pick a reasonable maximum for testing.
-        const MAX_BYTES: usize = 512;
+        // Pick a reasonable maximum bit length for testing.
+        const MAX_BITS: usize = 512 * 8;
 
-        let rand = usize::arbitrary(u)?;
-        let size = std::cmp::min(rand, MAX_BYTES);
-        let mut vec = smallvec![0u8; size];
+        let len = u.int_in_range(0..=MAX_BITS)?;
+        // The encoding requires len data bits + 1 length bit.
+        let num_bytes = bytes_for_bit_len(len + 1);
+        let mut vec = smallvec![0u8; num_bytes];
         u.fill_buffer(&mut vec)?;
+        // Place the length bit at position `len` and clear everything above it
+        // in the last byte. Bits below the length bit are random data.
+        let length_bit_byte = len / 8;
+        let length_bit_pos = len % 8;
+        vec[length_bit_byte] &= crate::bitfield::last_byte_mask(len);
+        vec[length_bit_byte] |= 1u8 << length_bit_pos;
         Self::from_bytes(vec).map_err(|_| arbitrary::Error::IncorrectFormat)
     }
 }
@@ -690,7 +693,7 @@ mod progressive_bitlist {
 
     #[test]
     fn ssz_bytes_len() {
-        for i in 1..64 {
+        for i in 0..64 {
             let mut bitfield = ProgressiveBitList::with_capacity(i).unwrap();
             for j in 0..i {
                 bitfield.set(j, true).expect("should set bit in bounds");
@@ -707,9 +710,100 @@ mod progressive_bitlist {
     }
 
     #[test]
+    fn serde_json_round_trip() {
+        // Empty bitlist encodes to the single length byte "0x01".
+        let empty = ProgressiveBitList::with_capacity(0).unwrap();
+        let json = serde_json::to_string(&empty).unwrap();
+        assert_eq!(json, "\"0x01\"");
+        assert_eq!(
+            serde_json::from_str::<ProgressiveBitList>(&json).unwrap(),
+            empty
+        );
+
+        // A multi-byte case.
+        let mut b = ProgressiveBitList::with_capacity(8).unwrap();
+        for i in 0..8 {
+            b.set(i, true).unwrap();
+        }
+        let json = serde_json::to_string(&b).unwrap();
+        assert_eq!(json, "\"0xff01\"");
+        assert_eq!(
+            serde_json::from_str::<ProgressiveBitList>(&json).unwrap(),
+            b
+        );
+    }
+
+    #[test]
     fn display() {
         let bitlist =
             ProgressiveBitList::from_raw_bytes(smallvec![0b0011_1111, 0b0001_0101], 15).unwrap();
         assert_eq!("111111001010100", bitlist.to_string());
+    }
+
+    #[test]
+    fn not() {
+        let a =
+            ProgressiveBitList::from_raw_bytes(smallvec![0b1010_1010, 0b0000_0101], 12).unwrap();
+        let b =
+            ProgressiveBitList::from_raw_bytes(smallvec![0b0101_0101, 0b0000_1010], 12).unwrap();
+
+        // `not` inverts every in-bounds bit and masks the bits above `len` (the top 4 bits of the
+        // second byte here) back to zero.
+        assert_eq!(a.not(), b);
+        assert_eq!(b.not(), a);
+        assert_eq!(a.not().not(), a);
+    }
+
+    #[test]
+    fn not_inplace() {
+        let mut a =
+            ProgressiveBitList::from_raw_bytes(smallvec![0b1010_1010, 0b0000_0101], 12).unwrap();
+        let original = a.clone();
+        let b =
+            ProgressiveBitList::from_raw_bytes(smallvec![0b0101_0101, 0b0000_1010], 12).unwrap();
+
+        a.not_inplace();
+        assert_eq!(a, b);
+        a.not_inplace();
+        assert_eq!(a, original);
+    }
+
+    #[cfg(feature = "arbitrary")]
+    #[test]
+    fn arbitrary_round_trip() {
+        use arbitrary::{Arbitrary, Unstructured};
+
+        // A deterministic byte pool to drive the generator.
+        let data: Vec<u8> = (0..4096u32)
+            .map(|i| i.wrapping_mul(31).wrapping_add(7) as u8)
+            .collect();
+        let mut u = Unstructured::new(&data);
+
+        for _ in 0..32 {
+            let Ok(bitlist) = ProgressiveBitList::arbitrary(&mut u) else {
+                break;
+            };
+            // Every generated value must be valid, no-excess-bits SSZ that round-trips.
+            let bytes = bitlist.as_ssz_bytes();
+            assert_eq!(ProgressiveBitList::from_ssz_bytes(&bytes).unwrap(), bitlist);
+        }
+    }
+
+    #[cfg(feature = "context_deserialize")]
+    #[test]
+    fn context_deserialize_matches_serde() {
+        use context_deserialize::ContextDeserialize;
+
+        let mut bitlist = ProgressiveBitList::with_capacity(8).unwrap();
+        for i in 0..8 {
+            bitlist.set(i, true).unwrap();
+        }
+
+        // `context_deserialize` ignores the context and must match plain serde deserialization.
+        let json = serde_json::to_string(&bitlist).unwrap();
+        let mut deserializer = serde_json::Deserializer::from_str(&json);
+        let decoded = ProgressiveBitList::context_deserialize(&mut deserializer, ()).unwrap();
+
+        assert_eq!(decoded, bitlist);
     }
 }

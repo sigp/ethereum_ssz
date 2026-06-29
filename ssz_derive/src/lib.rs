@@ -223,9 +223,12 @@ struct FieldOpts {
 /// Variant-level configuration (for enums).
 ///
 /// These attributes NEED to be kept in sync with `tree_hash` because both crates try to read
-/// each others attributes to avoid mandatory duplication. In future this might mean parsing some
-/// tree_hash-only attributes here and then ignoring them.
+/// each others attributes to avoid mandatory duplication.
+///
+/// `allow_unknown_fields` ensures that `tree_hash`-only keys (current or future) on a shared
+/// variant attribute are tolerated and ignored here, rather than causing a parse error.
 #[derive(Debug, Default, PartialEq, FromMeta)]
+#[darling(allow_unknown_fields)]
 struct VariantOpts {
     #[darling(default)]
     selector: Option<u8>,
@@ -733,12 +736,7 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
         panic!("0-variant union is not supported");
     }
 
-    // Check that selectors are NOT set.
-    // We could eventually remove this restriction: https://github.com/sigp/ethereum_ssz/issues/70
-    assert!(
-        variant_opts.iter().all(|opt| opt.selector.is_none()),
-        "specifying the selector in a regular union is not supported"
-    );
+    assert_no_explicit_selectors(&variant_opts);
 
     let patterns: Vec<_> = enum_data
         .variants
@@ -815,13 +813,19 @@ fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
                 panic!("more than one variant-level \"ssz\" attribute provided");
             }
 
-            let tree_hash_opts = tree_hash_attrs
-                .first()
-                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap());
+            let variant_name = &variant.ident;
+            let parse_opts = |attr: &&Attribute| {
+                VariantOpts::from_meta(&attr.meta).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse variant attribute for \"{variant_name}\": {e}; \
+                         note that `selector` must be an integer in 1..=127"
+                    )
+                })
+            };
 
-            let ssz_opts = ssz_attrs
-                .first()
-                .map(|attr| VariantOpts::from_meta(&attr.meta).unwrap());
+            let tree_hash_opts = tree_hash_attrs.first().map(parse_opts);
+
+            let ssz_opts = ssz_attrs.first().map(parse_opts);
 
             // Check consistency with tree_hash opts, or fall back to tree_hash attribute if ssz
             // attribute is absent.
@@ -840,11 +844,22 @@ fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
         .collect()
 }
 
+/// Assert that no variant in a regular union carries an explicit selector.
+///
+/// Regular unions derive selectors from declaration order, so an explicit selector is rejected on
+/// both the encode and decode side. See https://github.com/sigp/ethereum_ssz/issues/70.
+fn assert_no_explicit_selectors(variant_opts: &[VariantOpts]) {
+    assert!(
+        variant_opts.iter().all(|opt| opt.selector.is_none()),
+        "specifying the selector in a regular union is not supported"
+    );
+}
+
 /// Derive `ssz::Encode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
 ///
-/// The union selector will be determined based upon the order in which the enum variants are
-/// defined. E.g., the top-most variant in the enum will have a selector of `1`, the variant
-/// beneath it will have a selector of `2` and so on.
+/// Each variant must carry an explicit `#[ssz(selector = "N")]` with `N` in `1..=127`. Selectors
+/// must be unique and may be non-contiguous and given in any order. Selector `0` and `128..=255`
+/// are reserved and rejected at compile time.
 ///
 /// # Limitations
 ///
@@ -1227,6 +1242,16 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
 
+    // Mirror the encode-side guards: a union must have at least one variant, and regular unions
+    // derive selectors from declaration order, so an explicit selector is not supported.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
+
     let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
         .variants
         .iter()
@@ -1276,6 +1301,10 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
 }
 
 /// Derive `ssz::Decode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
+///
+/// Each variant must carry an explicit `#[ssz(selector = "N")]` with `N` in `1..=127`. Selectors
+/// must be unique and may be non-contiguous and given in any order. Selector `0` and `128..=255`
+/// are reserved and rejected at compile time.
 fn ssz_decode_derive_enum_compatible_union(
     derive_input: &DeriveInput,
     enum_data: &DataEnum,
@@ -1322,12 +1351,10 @@ fn ssz_decode_derive_enum_compatible_union(
                 // `ssz`.
                 debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
 
-                if __bytes.is_empty() {
-                    return Err(ssz::DecodeError::OutOfBoundsByte { i: 0 });
-                }
-
-                let selector = __bytes[0];
-                let body = &__bytes[1..];
+                // Split off the leading selector byte, rejecting empty input and selectors in the
+                // reserved range (`0` and `128..=255`) via the shared helper.
+                let (selector, body) = ssz::split_union_bytes(__bytes)?;
+                let selector: u8 = selector.into();
 
                 match selector {
                     #(

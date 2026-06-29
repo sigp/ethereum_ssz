@@ -254,11 +254,6 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
         result
     }
 
-    /// Returns `true` if `self` is a subset of `other` and `false` otherwise.
-    pub fn is_subset(&self, other: &Self) -> bool {
-        self.difference(other).is_zero()
-    }
-
     /// Returns a new BitList of length M, with the same bits set as `self`.
     pub fn resize<M: Unsigned + Clone>(&self) -> Result<Bitfield<Variable<M>>, Error> {
         if N::to_usize() > M::to_usize() {
@@ -352,11 +347,6 @@ impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
                 self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
         }
         result
-    }
-
-    /// Returns `true` if `self` is a subset of `other` and `false` otherwise.
-    pub fn is_subset(&self, other: &Self) -> bool {
-        self.difference(other).is_zero()
     }
 }
 
@@ -531,6 +521,11 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
         }
     }
 
+    /// Returns `true` if `self` is a subset of `other` and `false` otherwise.
+    pub fn is_subset(&self, other: &Self) -> bool {
+        self.difference(other).is_zero()
+    }
+
     /// Perform a bitwise-not operation on the bits in `self`. Creates a new Bitfield.
     pub fn not(&self) -> Self {
         let mut result = self.clone();
@@ -607,6 +602,28 @@ fn bytes_for_bit_len(bit_len: usize) -> usize {
     std::cmp::max(1, bit_len.div_ceil(8))
 }
 
+/// Returns the number of bytes in the SSZ encoding of a variable-length bitfield (`BitList` or
+/// `ProgressiveBitList`) of `len` bits, i.e. the data bits plus the trailing length-delimiter bit.
+///
+/// Shared by the `Variable` and `Progressive` `Encode` implementations so the two cannot drift.
+fn variable_bitfield_ssz_bytes_len(len: usize) -> usize {
+    bytes_for_bit_len(len + 1)
+}
+
+/// Appends the SSZ encoding of a variable-length bitfield (`BitList` or `ProgressiveBitList`) to
+/// `buf`, given its raw data `bytes` and bit length `len`. Sets the trailing length-delimiter bit
+/// at index `len`.
+///
+/// Shared by the `Variable` and `Progressive` `Encode` implementations so the two cannot drift.
+fn variable_bitfield_ssz_append(bytes: &[u8], len: usize, buf: &mut Vec<u8>) {
+    let start = buf.len();
+    buf.extend_from_slice(bytes);
+    if bytes_for_bit_len(len + 1) > bytes.len() {
+        buf.push(0);
+    }
+    buf[start + len / 8] |= 1 << (len % 8);
+}
+
 /// An iterator over the bits in a `Bitfield`.
 pub struct BitIter<'a, T> {
     bitfield: &'a Bitfield<T>,
@@ -629,13 +646,11 @@ impl<N: Unsigned + Clone> Encode for Bitfield<Variable<N>> {
     }
 
     fn ssz_bytes_len(&self) -> usize {
-        // We could likely do better than turning this into bytes and reading the length, however
-        // it is kept this way for simplicity.
-        self.clone().into_bytes().len()
+        variable_bitfield_ssz_bytes_len(self.len())
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(&self.clone().into_bytes())
+        variable_bitfield_ssz_append(&self.bytes, self.len(), buf)
     }
 }
 
