@@ -1486,3 +1486,27 @@ fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantO
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn variant_can_mix_ssz_selector_with_tree_hash_only_attribute() {
+        let input: DeriveInput = syn::parse_quote! {
+            enum CompatibleUnion {
+                #[ssz(selector = "1")]
+                #[tree_hash(some_tree_hash_only_key)]
+                A(u8),
+            }
+        };
+        let syn::Data::Enum(enum_data) = input.data else {
+            unreachable!("test input is an enum")
+        };
+
+        assert_eq!(
+            parse_variant_opts(&enum_data),
+            vec![VariantOpts { selector: Some(1) }]
+        );
+    }
+}
