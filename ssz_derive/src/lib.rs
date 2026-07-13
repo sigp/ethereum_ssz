@@ -831,11 +831,17 @@ fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
             // attribute is absent.
             match (tree_hash_opts, ssz_opts) {
                 (Some(tree_hash), Some(ssz)) => {
-                    assert_eq!(
-                        tree_hash, ssz,
-                        "inconsistent \"ssz\" and \"tree_hash\" attributes"
-                    );
-                    tree_hash
+                    // A selector only conflicts if stated by both attributes; a `tree_hash`
+                    // attribute carrying only tree_hash-specific keys parses to `None`.
+                    if tree_hash.selector.is_some() && ssz.selector.is_some() {
+                        assert_eq!(
+                            tree_hash, ssz,
+                            "inconsistent \"ssz\" and \"tree_hash\" attributes"
+                        );
+                    }
+                    VariantOpts {
+                        selector: ssz.selector.or(tree_hash.selector),
+                    }
                 }
                 (Some(attr), None) | (None, Some(attr)) => attr,
                 (None, None) => VariantOpts::default(),
