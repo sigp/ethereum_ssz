@@ -1286,10 +1286,6 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
             }
 
             fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
-                // Sanity check to ensure the definition here does not drift from the one defined in
-                // `ssz`.
-                debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
-
                 let (selector, body) = ssz::split_union_bytes(__bytes)?;
 
                 match selector.into() {
@@ -1353,10 +1349,6 @@ fn ssz_decode_derive_enum_compatible_union(
             }
 
             fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
-                // Sanity check to ensure the definition here does not drift from the one defined in
-                // `ssz`.
-                debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
-
                 // Split off the leading selector byte, rejecting empty input and selectors in the
                 // reserved range (`0` and `128..=255`) via the shared helper.
                 let (selector, body) = ssz::split_union_bytes(__bytes)?;
@@ -1490,6 +1482,12 @@ fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantO
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Sanity check to ensure the definition here does not drift from the one defined in `ssz`.
+    #[test]
+    fn max_union_selector_consistent_with_ssz() {
+        assert_eq!(MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
+    }
 
     #[test]
     fn variant_can_mix_ssz_selector_with_tree_hash_only_attribute() {
