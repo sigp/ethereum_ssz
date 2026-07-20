@@ -27,12 +27,12 @@ impl Bitfield<Progressive> {
     /// shrunk after instantiation.
     ///
     /// All bits are initialized to `false`.
-    pub fn with_capacity(num_bits: usize) -> Result<Self, Error> {
-        Ok(Self {
+    pub fn with_capacity(num_bits: usize) -> Self {
+        Self {
             bytes: smallvec![0; bytes_for_bit_len(num_bits)],
             len: num_bits,
             _phantom: PhantomData,
-        })
+        }
     }
 
     /// Consumes `self`, returning a serialized representation.
@@ -45,7 +45,7 @@ impl Bitfield<Progressive> {
     /// use ssz::ProgressiveBitList;
     /// use smallvec::SmallVec;
     ///
-    /// let b = ProgressiveBitList::with_capacity(4).unwrap();
+    /// let b = ProgressiveBitList::with_capacity(4);
     ///
     /// assert_eq!(b.into_bytes(), SmallVec::from_buf([0b0001_0000]));
     /// ```
@@ -109,7 +109,7 @@ impl Bitfield<Progressive> {
     /// Return a new ProgressiveBitList with length equal to the shorter of the two inputs.
     pub fn intersection(&self, other: &Self) -> Self {
         let min_len = std::cmp::min(self.len(), other.len());
-        let mut result = Self::with_capacity(min_len).expect("min len is always valid");
+        let mut result = Self::with_capacity(min_len);
         // Bitwise-and the bytes together, starting from the left of each vector. This takes care
         // of masking out any entries beyond `min_len` as well, assuming the bitfield doesn't
         // contain any set bits beyond its length.
@@ -124,7 +124,7 @@ impl Bitfield<Progressive> {
     /// Return a new ProgressiveBitList with length equal to the longer of the two inputs.
     pub fn union(&self, other: &Self) -> Self {
         let max_len = std::cmp::max(self.len(), other.len());
-        let mut result = Self::with_capacity(max_len).expect("max len is always valid");
+        let mut result = Self::with_capacity(max_len);
         for i in 0..result.bytes.len() {
             result.bytes[i] =
                 self.bytes.get(i).copied().unwrap_or(0) | other.bytes.get(i).copied().unwrap_or(0);
@@ -210,41 +210,39 @@ mod progressive_bitlist {
     #[test]
     fn ssz_encode() {
         assert_eq!(
-            ProgressiveBitList::with_capacity(0).unwrap().as_ssz_bytes(),
+            ProgressiveBitList::with_capacity(0).as_ssz_bytes(),
             vec![0b0000_0001],
         );
 
         assert_eq!(
-            ProgressiveBitList::with_capacity(1).unwrap().as_ssz_bytes(),
+            ProgressiveBitList::with_capacity(1).as_ssz_bytes(),
             vec![0b0000_0010],
         );
 
         assert_eq!(
-            ProgressiveBitList::with_capacity(8).unwrap().as_ssz_bytes(),
+            ProgressiveBitList::with_capacity(8).as_ssz_bytes(),
             vec![0b0000_0000, 0b0000_0001],
         );
 
         assert_eq!(
-            ProgressiveBitList::with_capacity(7).unwrap().as_ssz_bytes(),
+            ProgressiveBitList::with_capacity(7).as_ssz_bytes(),
             vec![0b1000_0000]
         );
 
-        let mut b = ProgressiveBitList::with_capacity(8).unwrap();
+        let mut b = ProgressiveBitList::with_capacity(8);
         for i in 0..8 {
             b.set(i, true).unwrap();
         }
         assert_eq!(b.as_ssz_bytes(), vec![255, 0b0000_0001]);
 
-        let mut b = ProgressiveBitList::with_capacity(8).unwrap();
+        let mut b = ProgressiveBitList::with_capacity(8);
         for i in 0..4 {
             b.set(i, true).unwrap();
         }
         assert_eq!(b.as_ssz_bytes(), vec![0b0000_1111, 0b0000_0001]);
 
         assert_eq!(
-            ProgressiveBitList::with_capacity(16)
-                .unwrap()
-                .as_ssz_bytes(),
+            ProgressiveBitList::with_capacity(16).as_ssz_bytes(),
             vec![0b0000_0000, 0b0000_0000, 0b0000_0001]
         );
     }
@@ -274,18 +272,18 @@ mod progressive_bitlist {
 
     #[test]
     fn ssz_round_trip() {
-        assert_round_trip(ProgressiveBitList::with_capacity(0).unwrap());
+        assert_round_trip(ProgressiveBitList::with_capacity(0));
 
         for i in 0..17 {
-            assert_round_trip(ProgressiveBitList::with_capacity(i).unwrap());
+            assert_round_trip(ProgressiveBitList::with_capacity(i));
         }
 
-        let mut b = ProgressiveBitList::with_capacity(1).unwrap();
+        let mut b = ProgressiveBitList::with_capacity(1);
         b.set(0, true).unwrap();
         assert_round_trip(b);
 
         for i in 0..16 {
-            let mut b = ProgressiveBitList::with_capacity(i).unwrap();
+            let mut b = ProgressiveBitList::with_capacity(i);
             for j in 0..i {
                 if j % 2 == 0 {
                     b.set(j, true).unwrap();
@@ -293,7 +291,7 @@ mod progressive_bitlist {
             }
             assert_round_trip(b);
 
-            let mut b = ProgressiveBitList::with_capacity(i).unwrap();
+            let mut b = ProgressiveBitList::with_capacity(i);
             for j in 0..i {
                 b.set(j, true).unwrap();
             }
@@ -384,7 +382,7 @@ mod progressive_bitlist {
     }
 
     fn test_set_unset(num_bits: usize) {
-        let mut bitfield = ProgressiveBitList::with_capacity(num_bits).unwrap();
+        let mut bitfield = ProgressiveBitList::with_capacity(num_bits);
 
         for i in 0..=num_bits {
             if i < num_bits {
@@ -406,7 +404,7 @@ mod progressive_bitlist {
 
     fn test_bytes_round_trip(num_bits: usize) {
         for i in 0..num_bits {
-            let mut bitfield = ProgressiveBitList::with_capacity(num_bits).unwrap();
+            let mut bitfield = ProgressiveBitList::with_capacity(num_bits);
             bitfield.set(i, true).unwrap();
 
             let bytes = bitfield.clone().into_raw_bytes();
@@ -440,7 +438,7 @@ mod progressive_bitlist {
 
     #[test]
     fn into_raw_bytes() {
-        let mut bitfield = ProgressiveBitList::with_capacity(9).unwrap();
+        let mut bitfield = ProgressiveBitList::with_capacity(9);
         bitfield.set(0, true).unwrap();
         assert_eq!(
             bitfield.clone().into_raw_bytes(),
@@ -491,9 +489,7 @@ mod progressive_bitlist {
     #[test]
     fn highest_set_bit() {
         assert_eq!(
-            ProgressiveBitList::with_capacity(16)
-                .unwrap()
-                .highest_set_bit(),
+            ProgressiveBitList::with_capacity(16).highest_set_bit(),
             None
         );
 
@@ -681,7 +677,7 @@ mod progressive_bitlist {
 
     #[test]
     fn iter() {
-        let mut bitfield = ProgressiveBitList::with_capacity(9).unwrap();
+        let mut bitfield = ProgressiveBitList::with_capacity(9);
         bitfield.set(2, true).unwrap();
         bitfield.set(8, true).unwrap();
 
@@ -694,7 +690,7 @@ mod progressive_bitlist {
     #[test]
     fn ssz_bytes_len() {
         for i in 0..64 {
-            let mut bitfield = ProgressiveBitList::with_capacity(i).unwrap();
+            let mut bitfield = ProgressiveBitList::with_capacity(i);
             for j in 0..i {
                 bitfield.set(j, true).expect("should set bit in bounds");
             }
@@ -712,7 +708,7 @@ mod progressive_bitlist {
     #[test]
     fn serde_json_round_trip() {
         // Empty bitlist encodes to the single length byte "0x01".
-        let empty = ProgressiveBitList::with_capacity(0).unwrap();
+        let empty = ProgressiveBitList::with_capacity(0);
         let json = serde_json::to_string(&empty).unwrap();
         assert_eq!(json, "\"0x01\"");
         assert_eq!(
@@ -721,7 +717,7 @@ mod progressive_bitlist {
         );
 
         // A multi-byte case.
-        let mut b = ProgressiveBitList::with_capacity(8).unwrap();
+        let mut b = ProgressiveBitList::with_capacity(8);
         for i in 0..8 {
             b.set(i, true).unwrap();
         }
@@ -794,7 +790,7 @@ mod progressive_bitlist {
     fn context_deserialize_matches_serde() {
         use context_deserialize::ContextDeserialize;
 
-        let mut bitlist = ProgressiveBitList::with_capacity(8).unwrap();
+        let mut bitlist = ProgressiveBitList::with_capacity(8);
         for i in 0..8 {
             bitlist.set(i, true).unwrap();
         }
