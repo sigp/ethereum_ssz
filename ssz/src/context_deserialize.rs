@@ -1,4 +1,4 @@
-use crate::{Bitfield, Fixed, Variable};
+use crate::{Bitfield, Fixed, Progressive, Variable};
 use context_deserialize::ContextDeserialize;
 use serde::{
     de::{Deserializer, Error},
@@ -28,6 +28,16 @@ where
         D: Deserializer<'de>,
     {
         Bitfield::<Fixed<N>>::deserialize(deserializer)
+            .map_err(|e| D::Error::custom(format!("{:?}", e)))
+    }
+}
+
+impl<'de, C> ContextDeserialize<'de, C> for Bitfield<Progressive> {
+    fn context_deserialize<D>(deserializer: D, _context: C) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Bitfield::<Progressive>::deserialize(deserializer)
             .map_err(|e| D::Error::custom(format!("{:?}", e)))
     }
 }

@@ -315,3 +315,182 @@ fn transparent_struct_newtype_skipped_encode_only() {
         &vec![42_u8].as_ssz_bytes(),
     );
 }
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoFixedCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(u8),
+    #[ssz(selector = "2")]
+    B(u8),
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct TwoFixedCompatibleUnionStruct {
+    a: TwoFixedCompatibleUnion,
+}
+
+#[test]
+fn two_fixed_compatible_union() {
+    let eight = TwoFixedCompatibleUnion::A(8);
+    let sixteen = TwoFixedCompatibleUnion::B(16);
+
+    // Selectors should be 1 and 2
+    assert_encode_decode(&eight, &[1, 8]);
+    assert_encode_decode(&sixteen, &[2, 16]);
+
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: eight },
+        &[4, 0, 0, 0, 1, 8],
+    );
+    assert_encode_decode(
+        &TwoFixedCompatibleUnionStruct { a: sixteen },
+        &[4, 0, 0, 0, 2, 16],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum TwoVecCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(Vec<u8>),
+    #[ssz(selector = "2")]
+    B(Vec<u8>),
+}
+
+#[test]
+fn two_vec_compatible_union() {
+    // Selectors should be 1 and 2
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![]), &[1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![]), &[2]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0]), &[1, 0]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0]), &[2, 0]);
+
+    assert_encode_decode(&TwoVecCompatibleUnion::A(vec![0, 1]), &[1, 0, 1]);
+    assert_encode_decode(&TwoVecCompatibleUnion::B(vec![0, 1]), &[2, 0, 1]);
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum CompatibleUnionOutOfOrderSelectors {
+    #[ssz(selector = "2")]
+    A(u8),
+    #[ssz(selector = "1")]
+    B(u8),
+}
+
+#[test]
+fn compatible_union_out_of_order() {
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::A(20), &[2, 20]);
+    assert_encode_decode(&CompatibleUnionOutOfOrderSelectors::B(10), &[1, 10]);
+}
+
+#[test]
+fn compatible_union_decode_errors() {
+    // Empty input has no selector byte.
+    assert_eq!(
+        TwoFixedCompatibleUnion::from_ssz_bytes(&[]),
+        Err(DecodeError::OutOfBoundsByte { i: 0 })
+    );
+
+    // Selector 3 is in-range (1..=127) but not declared by this enum.
+    assert_eq!(
+        TwoFixedCompatibleUnion::from_ssz_bytes(&[3, 0]),
+        Err(DecodeError::UnionSelectorInvalid(3))
+    );
+
+    // Selector 200 is in the reserved range (128..=255).
+    assert_eq!(
+        TwoFixedCompatibleUnion::from_ssz_bytes(&[200, 0]),
+        Err(DecodeError::UnionSelectorInvalid(200))
+    );
+
+    // A declared selector with an invalid body length propagates the inner error.
+    assert!(TwoFixedCompatibleUnion::from_ssz_bytes(&[1]).is_err());
+    assert!(TwoFixedCompatibleUnion::from_ssz_bytes(&[1, 0, 0]).is_err());
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum MixedFixedVariableCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(u8),
+    #[ssz(selector = "2")]
+    B(Vec<u8>),
+}
+
+#[test]
+fn mixed_fixed_variable_compatible_union() {
+    assert_encode_decode(&MixedFixedVariableCompatibleUnion::A(8), &[1, 8]);
+    assert_encode_decode(&MixedFixedVariableCompatibleUnion::B(vec![]), &[2]);
+    assert_encode_decode(
+        &MixedFixedVariableCompatibleUnion::B(vec![3, 4]),
+        &[2, 3, 4],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum SingleVariantCompatibleUnion {
+    #[ssz(selector = "1")]
+    A(u16),
+}
+
+#[test]
+fn single_variant_compatible_union() {
+    assert_encode_decode(&SingleVariantCompatibleUnion::A(0xabcd), &[1, 0xcd, 0xab]);
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+struct TwoVecCompatibleUnionStruct {
+    a: TwoVecCompatibleUnion,
+    b: TwoVecCompatibleUnion,
+}
+
+#[test]
+fn variable_compatible_union_in_container() {
+    // Both fields are variable-length, so the second field's offset depends on the serialized
+    // length of the first union (selector byte + payload). This exercises the container offset
+    // framing and the `ssz_bytes_len` accounting of `compatible_union`.
+    //
+    // Fixed section: offset(a) ++ offset(b) = 8 bytes. Variable section: a_bytes ++ b_bytes.
+    assert_encode_decode(
+        &TwoVecCompatibleUnionStruct {
+            a: TwoVecCompatibleUnion::A(vec![]),
+            b: TwoVecCompatibleUnion::B(vec![3, 4]),
+        },
+        // offset_a = 8, offset_b = 8 + 1 = 9, then [1] ++ [2, 3, 4].
+        &[8, 0, 0, 0, 9, 0, 0, 0, 1, 2, 3, 4],
+    );
+    assert_encode_decode(
+        &TwoVecCompatibleUnionStruct {
+            a: TwoVecCompatibleUnion::A(vec![0, 1]),
+            b: TwoVecCompatibleUnion::A(vec![]),
+        },
+        // offset_a = 8, offset_b = 8 + 3 = 11, then [1, 0, 1] ++ [1].
+        &[8, 0, 0, 0, 11, 0, 0, 0, 1, 0, 1, 1],
+    );
+}
+
+#[derive(PartialEq, Debug, Encode, Decode)]
+#[ssz(enum_behaviour = "compatible_union")]
+enum BoundarySelectorCompatibleUnion {
+    #[ssz(selector = "1")]
+    Min(u8),
+    #[ssz(selector = "127")]
+    Max(u8),
+}
+
+#[test]
+fn compatible_union_selector_boundaries() {
+    // The lowest (1) and highest (127) legal selectors round-trip.
+    assert_encode_decode(&BoundarySelectorCompatibleUnion::Min(9), &[1, 9]);
+    assert_encode_decode(&BoundarySelectorCompatibleUnion::Max(9), &[127, 9]);
+
+    // 128 is the first value in the reserved range (128..=255) and must be rejected.
+    assert_eq!(
+        BoundarySelectorCompatibleUnion::from_ssz_bytes(&[128, 9]),
+        Err(DecodeError::UnionSelectorInvalid(128))
+    );
+}

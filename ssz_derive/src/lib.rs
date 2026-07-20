@@ -8,6 +8,8 @@
 //!
 //! - `#[ssz(enum_behaviour = "tag")]`: encodes and decodes an `enum` with 0 fields per variant
 //! - `#[ssz(enum_behaviour = "union")]`: encodes and decodes an `enum` with a one-byte variant selector.
+//! - `#[ssz(enum_behaviour = "compatible_union")]`: encodes and decodes an `enum` with a one-byte
+//!   variant selector using selectors 1-127 per EIP-8016 for backwards compatible unions.
 //! - `#[ssz(enum_behaviour = "transparent")]`: allows encoding an `enum` by serializing only the
 //!   value whilst ignoring outermost the `enum`.  decodes by attempting to decode each variant
 //!   in order and the first one that is successful is returned.
@@ -128,6 +130,25 @@
 //!     UnionEnum::Bar(vec![42, 42]),
 //! );
 //!
+//! /// Represented as an SSZ "compatible union" per EIP-8016.
+//! #[derive(Debug, PartialEq, Encode, Decode)]
+//! #[ssz(enum_behaviour = "compatible_union")]
+//! enum CompatibleUnionEnum {
+//!     #[ssz(selector = "1")]
+//!     Foo(u8),
+//!     #[ssz(selector = "2")]
+//!     Bar(u8),
+//! }
+//!
+//! assert_eq!(
+//!     CompatibleUnionEnum::Foo(42).as_ssz_bytes(),
+//!     vec![1, 42]
+//! );
+//! assert_eq!(
+//!     CompatibleUnionEnum::from_ssz_bytes(&[2, 42]).unwrap(),
+//!     CompatibleUnionEnum::Bar(42),
+//! );
+//!
 //! /// Represented as only the value in the enum variant.
 //! #[derive(Debug, PartialEq, Encode, Decode)]
 //! #[ssz(enum_behaviour = "transparent")]
@@ -169,15 +190,15 @@
 use darling::{FromDeriveInput, FromMeta};
 use proc_macro::TokenStream;
 use quote::quote;
-use std::convert::TryInto;
-use syn::{parse_macro_input, DataEnum, DataStruct, DeriveInput, Ident, Index};
+use std::{collections::HashSet, convert::TryInto};
+use syn::{parse_macro_input, Attribute, DataEnum, DataStruct, DeriveInput, Ident, Index};
 
 /// The highest possible union selector value (higher values are reserved for backwards compatible
 /// extensions).
 const MAX_UNION_SELECTOR: u8 = 127;
 
 const NO_ENUM_BEHAVIOUR_ERROR: &str = "enums require an \"enum_behaviour\" attribute with \
-    a \"transparent\", \"union\", or \"tag\" value, e.g., #[ssz(enum_behaviour = \"transparent\")]";
+    a \"transparent\", \"union\", \"tag\", or \"compatible_union\" value, e.g., #[ssz(enum_behaviour = \"transparent\")]";
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(ssz))]
@@ -197,6 +218,20 @@ struct FieldOpts {
     skip_serializing: bool,
     #[darling(default)]
     skip_deserializing: bool,
+}
+
+/// Variant-level configuration (for enums).
+///
+/// These attributes NEED to be kept in sync with `tree_hash` because both crates try to read
+/// each others attributes to avoid mandatory duplication.
+///
+/// `allow_unknown_fields` ensures that `tree_hash`-only keys (current or future) on a shared
+/// variant attribute are tolerated and ignored here, rather than causing a parse error.
+#[derive(Debug, Default, PartialEq, FromMeta)]
+#[darling(allow_unknown_fields)]
+struct VariantOpts {
+    #[darling(default)]
+    selector: Option<u8>,
 }
 
 enum Procedure<'a> {
@@ -219,6 +254,7 @@ enum EnumBehaviour {
     Union,
     Transparent,
     Tag,
+    CompatibleUnion,
 }
 
 impl<'a> Procedure<'a> {
@@ -264,8 +300,12 @@ impl<'a> Procedure<'a> {
                         data,
                         behaviour: EnumBehaviour::Tag,
                     },
+                    Some("compatible_union") => Procedure::Enum {
+                        data,
+                        behaviour: EnumBehaviour::CompatibleUnion,
+                    },
                     Some(other) => panic!(
-                        "{} is not a valid enum behaviour, use \"container\" or \"transparent\"",
+                        "{} is not a valid enum behaviour, use \"union\", \"transparent\", \"tag\", or \"compatible_union\"",
                         other
                     ),
                     None => panic!("{}", NO_ENUM_BEHAVIOUR_ERROR),
@@ -274,6 +314,23 @@ impl<'a> Procedure<'a> {
             _ => panic!("ssz_derive only supports structs and enums"),
         }
     }
+}
+
+/// Predicate for determining whether an attribute is a `tree_hash` attribute.
+fn is_tree_hash_attr(attr: &Attribute) -> bool {
+    is_attr_with_ident(attr, "tree_hash")
+}
+
+/// Predicate for determining whether an attribute is a `ssz` attribute.
+fn is_ssz_attr(attr: &Attribute) -> bool {
+    is_attr_with_ident(attr, "ssz")
+}
+
+/// Predicate for determining whether an attribute has the given `ident` as its path.
+fn is_attr_with_ident(attr: &Attribute, ident: &str) -> bool {
+    attr.path()
+        .get_ident()
+        .is_some_and(|attr_ident| *attr_ident == ident)
 }
 
 fn parse_ssz_fields(
@@ -289,7 +346,7 @@ fn parse_ssz_fields(
             let field_opts_candidates = field
                 .attrs
                 .iter()
-                .filter(|attr| attr.path().get_ident().is_some_and(|ident| *ident == "ssz"))
+                .filter(|attr| is_ssz_attr(attr))
                 .collect::<Vec<_>>();
 
             if field_opts_candidates.len() > 1 {
@@ -321,6 +378,7 @@ pub fn ssz_encode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Transparent => ssz_encode_derive_enum_transparent(&item, data),
             EnumBehaviour::Union => ssz_encode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_encode_derive_enum_tag(&item, data),
+            EnumBehaviour::CompatibleUnion => ssz_encode_derive_enum_compatible_union(&item, data),
         },
     }
 }
@@ -626,6 +684,15 @@ fn ssz_encode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
         })
         .collect();
 
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
+
     let union_selectors = compute_union_selectors(patterns.len());
 
     let output = quote! {
@@ -670,6 +737,15 @@ fn ssz_encode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
 fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum) -> TokenStream {
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
 
     let patterns: Vec<_> = enum_data
         .variants
@@ -724,6 +800,152 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     output.into()
 }
 
+fn parse_variant_opts(enum_data: &DataEnum) -> Vec<VariantOpts> {
+    enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let tree_hash_attrs = variant
+                .attrs
+                .iter()
+                .filter(|attr| is_tree_hash_attr(attr))
+                .collect::<Vec<_>>();
+            let ssz_attrs = variant
+                .attrs
+                .iter()
+                .filter(|attr| is_ssz_attr(attr))
+                .collect::<Vec<_>>();
+
+            // Check for duplicate `ssz` attributes.
+            // Checking duplicate `tree_hash` attributes is the job of the `tree_hash_derive` macro.
+            if ssz_attrs.len() > 1 {
+                panic!("more than one variant-level \"ssz\" attribute provided");
+            }
+
+            let variant_name = &variant.ident;
+            let parse_opts = |attr: &&Attribute| {
+                VariantOpts::from_meta(&attr.meta).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse variant attribute for \"{variant_name}\": {e}; \
+                         note that `selector` must be an integer in 1..=127"
+                    )
+                })
+            };
+
+            let tree_hash_opts = tree_hash_attrs.first().map(parse_opts);
+
+            let ssz_opts = ssz_attrs.first().map(parse_opts);
+
+            // Check consistency with tree_hash opts, or fall back to tree_hash attribute if ssz
+            // attribute is absent.
+            match (tree_hash_opts, ssz_opts) {
+                (Some(tree_hash), Some(ssz)) => {
+                    // A selector only conflicts if stated by both attributes; a `tree_hash`
+                    // attribute carrying only tree_hash-specific keys parses to `None`.
+                    if tree_hash.selector.is_some() && ssz.selector.is_some() {
+                        assert_eq!(
+                            tree_hash, ssz,
+                            "inconsistent \"ssz\" and \"tree_hash\" attributes"
+                        );
+                    }
+                    VariantOpts {
+                        selector: ssz.selector.or(tree_hash.selector),
+                    }
+                }
+                (Some(attr), None) | (None, Some(attr)) => attr,
+                (None, None) => VariantOpts::default(),
+            }
+        })
+        .collect()
+}
+
+/// Assert that no variant in a regular union carries an explicit selector.
+///
+/// Regular unions derive selectors from declaration order, so an explicit selector is rejected on
+/// both the encode and decode side. See https://github.com/sigp/ethereum_ssz/issues/70.
+fn assert_no_explicit_selectors(variant_opts: &[VariantOpts]) {
+    assert!(
+        variant_opts.iter().all(|opt| opt.selector.is_none()),
+        "specifying the selector in a regular union is not supported"
+    );
+}
+
+/// Derive `ssz::Encode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
+///
+/// Each variant must carry an explicit `#[ssz(selector = "N")]` with `N` in `1..=127`. Selectors
+/// must be unique and may be non-contiguous and given in any order. Selector `0` and `128..=255`
+/// are reserved and rejected at compile time.
+///
+/// # Limitations
+///
+/// Only supports enums where each variant has a single field.
+fn ssz_encode_derive_enum_compatible_union(
+    derive_input: &DeriveInput,
+    enum_data: &DataEnum,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant compatible union is not supported");
+    }
+
+    let patterns: Vec<_> = enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_name = &variant.ident;
+
+            if variant.fields.len() != 1 {
+                panic!("ssz::Encode can only be derived for enums with 1 field per variant");
+            }
+
+            let pattern = quote! {
+                #name::#variant_name(ref inner)
+            };
+            pattern
+        })
+        .collect::<Vec<_>>();
+
+    let union_selectors = get_compatible_union_selectors(enum_data, &variant_opts);
+
+    let output = quote! {
+        impl #impl_generics ssz::Encode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                false
+            }
+
+            fn ssz_bytes_len(&self) -> usize {
+                match self {
+                    #(
+                        #patterns => inner
+                            .ssz_bytes_len()
+                            .checked_add(1)
+                            .expect("encoded length must be less than usize::max_value"),
+                    )*
+                }
+            }
+
+            fn ssz_append(&self, buf: &mut Vec<u8>) {
+                match self {
+                    #(
+                        #patterns => {
+                            let union_selector: u8 = #union_selectors;
+                            debug_assert!(union_selector > 0 && union_selector <= ssz::MAX_UNION_SELECTOR);
+                            buf.push(union_selector);
+                            inner.ssz_append(buf)
+                        },
+                    )*
+                }
+            }
+        }
+    };
+    output.into()
+}
+
 /// Derive `ssz::Decode` for a struct or enum.
 #[proc_macro_derive(Decode, attributes(ssz))]
 pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
@@ -739,6 +961,7 @@ pub fn ssz_decode_derive(input: TokenStream) -> TokenStream {
             EnumBehaviour::Union => ssz_decode_derive_enum_union(&item, data),
             EnumBehaviour::Tag => ssz_decode_derive_enum_tag(&item, data),
             EnumBehaviour::Transparent => ssz_decode_derive_enum_transparent(&item, data),
+            EnumBehaviour::CompatibleUnion => ssz_decode_derive_enum_compatible_union(&item, data),
         },
     }
 }
@@ -1034,6 +1257,16 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
 
+    // Mirror the encode-side guards: a union must have at least one variant, and regular unions
+    // derive selectors from declaration order, so an explicit selector is not supported.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
+
     let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
         .variants
         .iter()
@@ -1062,13 +1295,75 @@ fn ssz_decode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
             }
 
             fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
-                // Sanity check to ensure the definition here does not drift from the one defined in
-                // `ssz`.
-                debug_assert_eq!(#MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
-
                 let (selector, body) = ssz::split_union_bytes(__bytes)?;
 
                 match selector.into() {
+                    #(
+                        #union_selectors => {
+                            <#var_types as ssz::Decode>::from_ssz_bytes(body).map(#constructors)
+                        },
+                    )*
+                    other => Err(ssz::DecodeError::UnionSelectorInvalid(other))
+                }
+            }
+        }
+    };
+    output.into()
+}
+
+/// Derive `ssz::Decode` for an `enum` following the "compatible_union" SSZ spec per EIP-8016.
+///
+/// Each variant must carry an explicit `#[ssz(selector = "N")]` with `N` in `1..=127`. Selectors
+/// must be unique and may be non-contiguous and given in any order. Selector `0` and `128..=255`
+/// are reserved and rejected at compile time.
+fn ssz_decode_derive_enum_compatible_union(
+    derive_input: &DeriveInput,
+    enum_data: &DataEnum,
+) -> TokenStream {
+    let name = &derive_input.ident;
+    let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant compatible union is not supported");
+    }
+
+    let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_name = &variant.ident;
+
+            if variant.fields.len() != 1 {
+                panic!("ssz::Decode can only be derived for enums with 1 field per variant");
+            }
+
+            let constructor = quote! {
+                #name::#variant_name
+            };
+
+            let ty = &(&variant.fields).into_iter().next().unwrap().ty;
+            (constructor, ty)
+        })
+        .unzip();
+
+    let union_selectors = get_compatible_union_selectors(enum_data, &variant_opts);
+
+    let output = quote! {
+        impl #impl_generics ssz::Decode for #name #ty_generics #where_clause {
+            fn is_ssz_fixed_len() -> bool {
+                false
+            }
+
+            fn from_ssz_bytes(__bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+                // Split off the leading selector byte, rejecting empty input and selectors in the
+                // reserved range (`0` and `128..=255`) via the shared helper.
+                let (selector, body) = ssz::split_union_bytes(__bytes)?;
+                let selector: u8 = selector.into();
+
+                match selector {
                     #(
                         #union_selectors => {
                             <#var_types as ssz::Decode>::from_ssz_bytes(body).map(#constructors)
@@ -1102,6 +1397,15 @@ fn ssz_decode_derive_enum_transparent(
 ) -> TokenStream {
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
 
     let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
         .variants
@@ -1162,4 +1466,63 @@ fn compute_union_selectors(num_variants: usize) -> Vec<u8> {
     );
 
     union_selectors
+}
+
+fn get_compatible_union_selectors(enum_data: &DataEnum, variant_opts: &[VariantOpts]) -> Vec<u8> {
+    let mut seen_selectors = HashSet::new();
+
+    enum_data
+        .variants
+        .iter()
+        .zip(variant_opts.iter())
+        .map(|(variant, variant_opt)| {
+            let variant_name = &variant.ident;
+            let Some(selector) = variant_opt.selector else {
+                panic!("you must define a selector for variant \"{variant_name}\"");
+            };
+            if selector == 0 || selector > MAX_UNION_SELECTOR {
+                panic!(
+                    "selector = {selector} for variant \"{variant_name}\" is illegal in a \
+                     compatible union"
+                );
+            }
+            if !seen_selectors.insert(selector) {
+                panic!(
+                    "duplicate selector = {selector} for variant \"{variant_name}\", \
+                     selectors must be unique"
+                );
+            }
+            selector
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Sanity check to ensure the definition here does not drift from the one defined in `ssz`.
+    #[test]
+    fn max_union_selector_consistent_with_ssz() {
+        assert_eq!(MAX_UNION_SELECTOR, ssz::MAX_UNION_SELECTOR);
+    }
+
+    #[test]
+    fn variant_can_mix_ssz_selector_with_tree_hash_only_attribute() {
+        let input: DeriveInput = syn::parse_quote! {
+            enum CompatibleUnion {
+                #[ssz(selector = "1")]
+                #[tree_hash(some_tree_hash_only_key)]
+                A(u8),
+            }
+        };
+        let syn::Data::Enum(enum_data) = input.data else {
+            unreachable!("test input is an enum")
+        };
+
+        assert_eq!(
+            parse_variant_opts(&enum_data),
+            vec![VariantOpts { selector: Some(1) }]
+        );
+    }
 }

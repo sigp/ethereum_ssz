@@ -21,8 +21,8 @@ impl PartialEq<u8> for UnionSelector {
 impl UnionSelector {
     /// Instantiate `self`, returning an error if `selector > MAX_UNION_SELECTOR`.
     pub fn new(selector: u8) -> Result<Self, DecodeError> {
-        Some(selector)
-            .filter(|_| selector <= MAX_UNION_SELECTOR)
+        (selector <= MAX_UNION_SELECTOR)
+            .then_some(selector)
             .map(Self)
             .ok_or(DecodeError::UnionSelectorInvalid(selector))
     }
