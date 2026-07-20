@@ -684,6 +684,15 @@ fn ssz_encode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
         })
         .collect();
 
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
+
     let union_selectors = compute_union_selectors(patterns.len());
 
     let output = quote! {
@@ -1388,6 +1397,15 @@ fn ssz_decode_derive_enum_transparent(
 ) -> TokenStream {
     let name = &derive_input.ident;
     let (impl_generics, ty_generics, where_clause) = &derive_input.generics.split_for_impl();
+
+    // Parse variant-level configuration.
+    let variant_opts = parse_variant_opts(enum_data);
+
+    if variant_opts.is_empty() {
+        panic!("0-variant union is not supported");
+    }
+
+    assert_no_explicit_selectors(&variant_opts);
 
     let (constructors, var_types): (Vec<_>, Vec<_>) = enum_data
         .variants
