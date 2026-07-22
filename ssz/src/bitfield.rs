@@ -596,10 +596,8 @@ impl<T> core::hash::Hash for Bitfield<T> {
 }
 
 /// Returns the minimum required bytes to represent a given number of bits.
-///
-/// `bit_len == 0` requires a single byte.
 fn bytes_for_bit_len(bit_len: usize) -> usize {
-    std::cmp::max(1, bit_len.div_ceil(8))
+    bit_len.div_ceil(8)
 }
 
 /// Returns the number of bytes in the SSZ encoding of a variable-length bitfield (`BitList` or
