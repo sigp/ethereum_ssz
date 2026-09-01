@@ -1,5 +1,6 @@
 //! Provides `Bitfield<Dynamic>` (BitVectorDynamic)
 /// for encoding and decoding bitvectors that have a dynamic length.
+use alloc::vec::Vec;
 use crate::{
     bitfield::{bytes_for_bit_len, Bitfield, BitfieldBehaviour, Error, SMALLVEC_LEN},
     Decode, DecodeError, Encode,
@@ -63,7 +64,7 @@ impl Bitfield<Dynamic> {
 
     /// Compute the intersection of two bitfields.
     pub fn intersection(&self, other: &Self) -> Result<Self, Error> {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
@@ -75,7 +76,7 @@ impl Bitfield<Dynamic> {
 
     /// Compute the union of two bitfields.
     pub fn union(&self, other: &Self) -> Result<Self, Error> {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
@@ -480,7 +481,7 @@ mod roundtrip_tests {
     use super::*;
     fn assert_round_trip_bitdyn<T>(t: T) -> Result<(), Error>
     where
-        T: Encode + Decode + PartialEq + std::fmt::Debug,
+        T: Encode + Decode + PartialEq + core::fmt::Debug,
     {
         let bytes = t.as_ssz_bytes();
         let decoded = T::from_ssz_bytes(&bytes).expect("decode failed in test");

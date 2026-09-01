@@ -34,6 +34,13 @@
 //!
 //! See `examples/` for manual implementations of the `Encode` and `Decode` traits.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::vec::Vec;
+
 mod bitfield;
 mod decode;
 mod encode;

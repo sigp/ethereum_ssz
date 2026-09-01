@@ -1,5 +1,6 @@
 //! Provides `Bitfield<Progressive>` (ProgressiveBitList)
 //! for encoding and decoding bitlists that have no capacity limit.
+use alloc::vec::Vec;
 use crate::{
     bitfield::{
         bytes_for_bit_len, variable_bitfield_ssz_append, variable_bitfield_ssz_bytes_len, Bitfield,
@@ -108,7 +109,7 @@ impl Bitfield<Progressive> {
     ///
     /// Return a new ProgressiveBitList with length equal to the shorter of the two inputs.
     pub fn intersection(&self, other: &Self) -> Self {
-        let min_len = std::cmp::min(self.len(), other.len());
+        let min_len = core::cmp::min(self.len(), other.len());
         let mut result = Self::with_capacity(min_len);
         // Bitwise-and the bytes together, starting from the left of each vector. This takes care
         // of masking out any entries beyond `min_len` as well, assuming the bitfield doesn't
@@ -123,7 +124,7 @@ impl Bitfield<Progressive> {
     ///
     /// Return a new ProgressiveBitList with length equal to the longer of the two inputs.
     pub fn union(&self, other: &Self) -> Self {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::with_capacity(max_len);
         for i in 0..result.bytes.len() {
             result.bytes[i] =
@@ -299,7 +300,7 @@ mod progressive_bitlist {
         }
     }
 
-    fn assert_round_trip<T: Encode + Decode + PartialEq + std::fmt::Debug>(t: T) {
+    fn assert_round_trip<T: Encode + Decode + PartialEq + core::fmt::Debug>(t: T) {
         assert_eq!(T::from_ssz_bytes(&t.as_ssz_bytes()).unwrap(), t);
     }
 
@@ -702,7 +703,7 @@ mod progressive_bitlist {
     // Ensure that the stack size of a ProgressiveBitList is manageable.
     #[test]
     fn size_of() {
-        assert_eq!(std::mem::size_of::<ProgressiveBitList>(), SMALLVEC_LEN + 24);
+        assert_eq!(core::mem::size_of::<ProgressiveBitList>(), SMALLVEC_LEN + 24);
     }
 
     #[test]
