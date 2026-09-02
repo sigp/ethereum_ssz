@@ -365,6 +365,13 @@ impl<T: BitfieldBehaviour> core::fmt::Display for Bitfield<T> {
     }
 }
 
+/// An empty bit list, mirroring the fixed variant's `Default`. Zero length is a valid `BitList`.
+impl<N: Unsigned + Clone> Default for Bitfield<Variable<N>> {
+    fn default() -> Self {
+        Self::with_capacity(0).expect("a zero length bitlist is within any bound")
+    }
+}
+
 impl<N: Unsigned + Clone> Default for Bitfield<Fixed<N>> {
     fn default() -> Self {
         Self::new()
