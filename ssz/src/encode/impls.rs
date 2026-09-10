@@ -1,9 +1,9 @@
 use super::*;
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::sync::Arc;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, U128, U256};
 use core::num::NonZeroUsize;
 use smallvec::SmallVec;
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 
 macro_rules! impl_encodable_for_uint {
     ($type: ident, $bit_size: expr) => {
@@ -404,7 +404,7 @@ impl Encode for NonZeroUsize {
     }
 
     fn ssz_bytes_len(&self) -> usize {
-        std::mem::size_of::<usize>()
+        core::mem::size_of::<usize>()
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {

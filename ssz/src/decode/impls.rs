@@ -1,12 +1,13 @@
 use super::*;
 use crate::decode::try_from_iter::{TryCollect, TryFromIter};
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::sync::Arc;
+use alloc::{string::ToString, vec::Vec};
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, U128, U256};
+use core::iter::{self, FromIterator};
 use core::num::NonZeroUsize;
 use itertools::process_results;
 use smallvec::SmallVec;
-use std::collections::{BTreeMap, BTreeSet};
-use std::iter::{self, FromIterator};
-use std::sync::Arc;
 
 macro_rules! impl_decodable_for_uint {
     ($type: ident, $bit_size: expr) => {
@@ -29,7 +30,7 @@ macro_rules! impl_decodable_for_uint {
                 if len != expected {
                     Err(DecodeError::InvalidByteLength { len, expected })
                 } else {
-                    let mut array: [u8; $bit_size / 8] = std::default::Default::default();
+                    let mut array: [u8; $bit_size / 8] = core::default::Default::default();
                     array.clone_from_slice(bytes);
 
                     Ok(Self::from_le_bytes(array))

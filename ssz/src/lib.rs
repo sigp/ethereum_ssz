@@ -34,6 +34,14 @@
 //!
 //! See `examples/` for manual implementations of the `Encode` and `Decode` traits.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+/// Re-exported so the derives can name `Vec` without relying on the consumer having imported it.
+pub use alloc::vec::Vec;
+
 mod bitfield;
 mod decode;
 mod encode;

@@ -1,4 +1,8 @@
 use crate::{Decode, DecodeError, Encode};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
@@ -230,7 +234,7 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     ///
     /// Return a new BitList with length equal to the shorter of the two inputs.
     pub fn intersection(&self, other: &Self) -> Self {
-        let min_len = std::cmp::min(self.len(), other.len());
+        let min_len = core::cmp::min(self.len(), other.len());
         let mut result = Self::with_capacity(min_len).expect("min len always less than N");
         // Bitwise-and the bytes together, starting from the left of each vector. This takes care
         // of masking out any entries beyond `min_len` as well, assuming the bitfield doesn't
@@ -245,7 +249,7 @@ impl<N: Unsigned + Clone> Bitfield<Variable<N>> {
     ///
     /// Return a new BitList with length equal to the longer of the two inputs.
     pub fn union(&self, other: &Self) -> Self {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::with_capacity(max_len).expect("max len always less than N");
         for i in 0..result.bytes.len() {
             result.bytes[i] =
@@ -350,8 +354,8 @@ impl<N: Unsigned + Clone> Bitfield<Fixed<N>> {
     }
 }
 
-impl<T: BitfieldBehaviour> std::fmt::Display for Bitfield<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T: BitfieldBehaviour> core::fmt::Display for Bitfield<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut field: String = "".to_string();
         for i in self.iter() {
             if i {
@@ -361,6 +365,13 @@ impl<T: BitfieldBehaviour> std::fmt::Display for Bitfield<T> {
             }
         }
         write!(f, "{field}")
+    }
+}
+
+/// An empty bit list, mirroring the fixed variant's `Default`. Zero length is a valid `BitList`.
+impl<N: Unsigned + Clone> Default for Bitfield<Variable<N>> {
+    fn default() -> Self {
+        Self::with_capacity(0).expect("a zero length bitlist is within any bound")
     }
 }
 
@@ -514,7 +525,7 @@ impl<T: BitfieldBehaviour> Bitfield<T> {
 
     /// Compute the difference of this Bitfield and another of potentially different length.
     pub fn difference_inplace(&mut self, other: &Self) {
-        let min_byte_len = std::cmp::min(self.bytes.len(), other.bytes.len());
+        let min_byte_len = core::cmp::min(self.bytes.len(), other.bytes.len());
 
         for i in 0..min_byte_len {
             self.bytes[i] &= !other.bytes[i];
@@ -599,7 +610,7 @@ impl<T> core::hash::Hash for Bitfield<T> {
 ///
 /// `bit_len == 0` requires a single byte.
 fn bytes_for_bit_len(bit_len: usize) -> usize {
-    std::cmp::max(1, bit_len.div_ceil(8))
+    core::cmp::max(1, bit_len.div_ceil(8))
 }
 
 /// Returns the number of bytes in the SSZ encoding of a variable-length bitfield (`BitList` or
@@ -957,7 +968,7 @@ mod bitvector {
         assert_round_trip(b);
     }
 
-    fn assert_round_trip<T: Encode + Decode + PartialEq + std::fmt::Debug>(t: T) {
+    fn assert_round_trip<T: Encode + Decode + PartialEq + core::fmt::Debug>(t: T) {
         assert_eq!(T::from_ssz_bytes(&t.as_ssz_bytes()).unwrap(), t);
     }
 
@@ -983,7 +994,7 @@ mod bitvector {
     // Ensure that stack size of a BitVector is manageable.
     #[test]
     fn size_of() {
-        assert_eq!(std::mem::size_of::<BitVector64>(), SMALLVEC_LEN + 24);
+        assert_eq!(core::mem::size_of::<BitVector64>(), SMALLVEC_LEN + 24);
     }
 
     #[test]
@@ -1203,7 +1214,7 @@ mod bitlist {
         }
     }
 
-    fn assert_round_trip<T: Encode + Decode + PartialEq + std::fmt::Debug>(t: T) {
+    fn assert_round_trip<T: Encode + Decode + PartialEq + core::fmt::Debug>(t: T) {
         assert_eq!(T::from_ssz_bytes(&t.as_ssz_bytes()).unwrap(), t);
     }
 
@@ -1569,7 +1580,7 @@ mod bitlist {
     // Ensure that the stack size of a BitList is manageable.
     #[test]
     fn size_of() {
-        assert_eq!(std::mem::size_of::<BitList1024>(), SMALLVEC_LEN + 24);
+        assert_eq!(core::mem::size_of::<BitList1024>(), SMALLVEC_LEN + 24);
     }
 
     #[test]

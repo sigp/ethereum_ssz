@@ -1,6 +1,7 @@
 use super::*;
+use alloc::string::String;
+use core::cmp::Ordering;
 use smallvec::{smallvec, SmallVec};
-use std::cmp::Ordering;
 
 type SmallVec8<T> = SmallVec<[T; 8]>;
 
@@ -368,7 +369,7 @@ fn decode_offset(bytes: &[u8]) -> Result<usize, DecodeError> {
     if len != expected {
         Err(DecodeError::InvalidLengthPrefix { len, expected })
     } else {
-        let mut array: [u8; BYTES_PER_LENGTH_OFFSET] = std::default::Default::default();
+        let mut array: [u8; BYTES_PER_LENGTH_OFFSET] = core::default::Default::default();
         array.clone_from_slice(bytes);
 
         Ok(u32::from_le_bytes(array) as usize)

@@ -1,9 +1,10 @@
 //! Provides `Bitfield<Dynamic>` (BitVectorDynamic)
-/// for encoding and decoding bitvectors that have a dynamic length.
 use crate::{
     bitfield::{bytes_for_bit_len, Bitfield, BitfieldBehaviour, Error, SMALLVEC_LEN},
     Decode, DecodeError, Encode,
 };
+/// for encoding and decoding bitvectors that have a dynamic length.
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
@@ -63,7 +64,7 @@ impl Bitfield<Dynamic> {
 
     /// Compute the intersection of two bitfields.
     pub fn intersection(&self, other: &Self) -> Result<Self, Error> {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
@@ -75,7 +76,7 @@ impl Bitfield<Dynamic> {
 
     /// Compute the union of two bitfields.
     pub fn union(&self, other: &Self) -> Result<Self, Error> {
-        let max_len = std::cmp::max(self.len(), other.len());
+        let max_len = core::cmp::max(self.len(), other.len());
         let mut result = Self::new(max_len)?;
 
         for (i, byte) in result.bytes.iter_mut().enumerate() {
@@ -150,8 +151,8 @@ mod dynamic_bitfield_tests {
         assert!(bitfield.set(15, true).is_ok());
         assert!(bitfield.set(16, true).is_err()); // Out of bounds
 
-        assert_eq!(bitfield.get(0)?, true);
-        assert_eq!(bitfield.get(15)?, true);
+        assert!(bitfield.get(0)?);
+        assert!(bitfield.get(15)?);
         assert!(bitfield.get(16).is_err());
 
         Ok(())
@@ -277,9 +278,9 @@ mod dynamic_bitfield_tests {
         b.set(4, true)?;
 
         let diff = a.difference(&b);
-        assert_eq!(diff.get(1)?, true);
-        assert_eq!(diff.get(3)?, false);
-        assert_eq!(diff.get(4)?, false);
+        assert!(diff.get(1)?);
+        assert!(!diff.get(3)?);
+        assert!(!diff.get(4)?);
 
         Ok(())
     }
@@ -291,9 +292,9 @@ mod dynamic_bitfield_tests {
         bitfield.set(1, true)?;
 
         bitfield.shift_up(1)?;
-        assert_eq!(bitfield.get(0)?, false);
-        assert_eq!(bitfield.get(1)?, true);
-        assert_eq!(bitfield.get(2)?, true);
+        assert!(!bitfield.get(0)?);
+        assert!(bitfield.get(1)?);
+        assert!(bitfield.get(2)?);
 
         // Test error case
         assert!(bitfield.shift_up(17).is_err());
@@ -480,7 +481,7 @@ mod roundtrip_tests {
     use super::*;
     fn assert_round_trip_bitdyn<T>(t: T) -> Result<(), Error>
     where
-        T: Encode + Decode + PartialEq + std::fmt::Debug,
+        T: Encode + Decode + PartialEq + core::fmt::Debug,
     {
         let bytes = t.as_ssz_bytes();
         let decoded = T::from_ssz_bytes(&bytes).expect("decode failed in test");
