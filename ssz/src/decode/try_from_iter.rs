@@ -1,8 +1,8 @@
-use alloc::vec::Vec;
-use smallvec::SmallVec;
 use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::vec::Vec;
 use core::convert::Infallible;
 use core::fmt::Debug;
+use smallvec::SmallVec;
 
 /// Partial variant of `core::iter::FromIterator`.
 ///

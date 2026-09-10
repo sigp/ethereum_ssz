@@ -477,7 +477,7 @@ fn ssz_encode_derive_struct(derive_input: &DeriveInput, struct_data: &DataStruct
                 }
             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
+            fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                 let mut offset: usize = 0;
                 #(
                     offset = offset
@@ -548,7 +548,7 @@ fn ssz_encode_derive_struct_transparent(
                     self.#field_name.ssz_bytes_len()
                 }
 
-                fn ssz_append(&self, buf: &mut Vec<u8>) {
+                fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                     self.#field_name.ssz_append(buf)
                 }
             }
@@ -568,7 +568,7 @@ fn ssz_encode_derive_struct_transparent(
                     self.#index.ssz_bytes_len()
                 }
 
-                fn ssz_append(&self, buf: &mut Vec<u8>) {
+                fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                     self.#index.ssz_append(buf)
                 }
             }
@@ -643,7 +643,7 @@ fn ssz_encode_derive_enum_transparent(
                 }
             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
+            fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                 match self {
                     #(
                         #patterns => inner.ssz_append(buf),
@@ -709,7 +709,7 @@ fn ssz_encode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
                 1
             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
+            fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                 match self {
                     #(
                         #patterns => {
@@ -783,7 +783,7 @@ fn ssz_encode_derive_enum_union(derive_input: &DeriveInput, enum_data: &DataEnum
                 }
             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
+            fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                 match self {
                     #(
                         #patterns => {
@@ -929,7 +929,7 @@ fn ssz_encode_derive_enum_compatible_union(
                 }
             }
 
-            fn ssz_append(&self, buf: &mut Vec<u8>) {
+            fn ssz_append(&self, buf: &mut ssz::Vec<u8>) {
                 match self {
                     #(
                         #patterns => {
@@ -1071,7 +1071,7 @@ fn ssz_decode_derive_struct(item: &DeriveInput, struct_data: &DataStruct) -> Tok
                 }
             }
 
-            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> core::result::Result<Self, ssz::DecodeError> {
                 if <Self as ssz::Decode>::is_ssz_fixed_len() {
                     if __bytes.len() != <Self as ssz::Decode>::ssz_fixed_len() {
                         return Err(ssz::DecodeError::InvalidByteLength {
@@ -1186,7 +1186,7 @@ fn ssz_decode_derive_struct_transparent(
                 <#ty as ssz::Decode>::ssz_fixed_len()
             }
 
-            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> core::result::Result<Self, ssz::DecodeError> {
                 Ok(Self {
                     #(
                         #fields
@@ -1232,7 +1232,7 @@ fn ssz_decode_derive_enum_tag(derive_input: &DeriveInput, enum_data: &DataEnum) 
                 1
             }
 
-            fn from_ssz_bytes(__bytes: &[u8]) -> std::result::Result<Self, ssz::DecodeError> {
+            fn from_ssz_bytes(__bytes: &[u8]) -> core::result::Result<Self, ssz::DecodeError> {
                 let byte = __bytes
                     .first()
                     .copied()

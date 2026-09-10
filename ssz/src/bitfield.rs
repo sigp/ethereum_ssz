@@ -1,5 +1,8 @@
-use alloc::{string::{String, ToString}, vec::Vec};
 use crate::{Decode, DecodeError, Encode};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};

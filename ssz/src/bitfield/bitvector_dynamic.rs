@@ -1,10 +1,10 @@
 //! Provides `Bitfield<Dynamic>` (BitVectorDynamic)
-/// for encoding and decoding bitvectors that have a dynamic length.
-use alloc::vec::Vec;
 use crate::{
     bitfield::{bytes_for_bit_len, Bitfield, BitfieldBehaviour, Error, SMALLVEC_LEN},
     Decode, DecodeError, Encode,
 };
+/// for encoding and decoding bitvectors that have a dynamic length.
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};

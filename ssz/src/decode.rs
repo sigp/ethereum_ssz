@@ -1,7 +1,7 @@
-use alloc::string::String;
 use super::*;
-use smallvec::{smallvec, SmallVec};
+use alloc::string::String;
 use core::cmp::Ordering;
+use smallvec::{smallvec, SmallVec};
 
 type SmallVec8<T> = SmallVec<[T; 8]>;
 

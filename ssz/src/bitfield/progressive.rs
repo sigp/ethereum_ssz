@@ -1,6 +1,5 @@
 //! Provides `Bitfield<Progressive>` (ProgressiveBitList)
 //! for encoding and decoding bitlists that have no capacity limit.
-use alloc::vec::Vec;
 use crate::{
     bitfield::{
         bytes_for_bit_len, variable_bitfield_ssz_append, variable_bitfield_ssz_bytes_len, Bitfield,
@@ -8,6 +7,7 @@ use crate::{
     },
     Decode, DecodeError, Encode,
 };
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
@@ -703,7 +703,10 @@ mod progressive_bitlist {
     // Ensure that the stack size of a ProgressiveBitList is manageable.
     #[test]
     fn size_of() {
-        assert_eq!(core::mem::size_of::<ProgressiveBitList>(), SMALLVEC_LEN + 24);
+        assert_eq!(
+            core::mem::size_of::<ProgressiveBitList>(),
+            SMALLVEC_LEN + 24
+        );
     }
 
     #[test]

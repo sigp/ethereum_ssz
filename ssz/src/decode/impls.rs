@@ -1,13 +1,13 @@
-use alloc::{string::ToString, vec::Vec};
 use super::*;
 use crate::decode::try_from_iter::{TryCollect, TryFromIter};
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::sync::Arc;
+use alloc::{string::ToString, vec::Vec};
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, U128, U256};
+use core::iter::{self, FromIterator};
 use core::num::NonZeroUsize;
 use itertools::process_results;
 use smallvec::SmallVec;
-use alloc::collections::{BTreeMap, BTreeSet};
-use core::iter::{self, FromIterator};
-use alloc::sync::Arc;
 
 macro_rules! impl_decodable_for_uint {
     ($type: ident, $bit_size: expr) => {

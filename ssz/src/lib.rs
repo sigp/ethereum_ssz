@@ -39,7 +39,8 @@
 #[macro_use]
 extern crate alloc;
 
-use alloc::vec::Vec;
+/// Re-exported so the derives can name `Vec` without relying on the consumer having imported it.
+pub use alloc::vec::Vec;
 
 mod bitfield;
 mod decode;
