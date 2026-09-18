@@ -3,14 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-/// The largest buffer we pre-allocate from an untrusted length hint, in bytes.
+/// The largest buffer we pre-allocate from an untrusted length, in bytes.
 ///
-/// SSZ decoding derives a list length from the input before it reads the elements. A hostile input
-/// can name a huge length, so we bound the up-front reservation to this budget. The collection
-/// still grows to fit, so a valid list is never rejected.
+/// This protects against a hostile input claiming a huge length. The decoded list
+/// can still grow past this limit, so a valid input is never rejected.
 const MAX_BYTES_TO_PRE_ALLOCATE: usize = 1_048_576;
 
-/// Returns the capacity to reserve for a length hint, bounded by `MAX_BYTES_TO_PRE_ALLOCATE`.
+/// Returns the capacity to reserve for a length, bounded by `MAX_BYTES_TO_PRE_ALLOCATE`.
 fn capped_capacity<T>(len_hint: Option<usize>) -> usize {
     len_hint
         .unwrap_or(0)
@@ -47,8 +46,8 @@ impl<T> TryFromIter<T> for Vec<T> {
     where
         I: IntoIterator<Item = T>,
     {
-        // The length hint comes from the SSZ input and is not yet checked, so bound the
-        // reservation to a fixed budget. The Vec still grows to fit every element.
+        // The expected size comes from the SSZ input and is not yet checked, so bound the
+        // pre-allocation to a fixed amount. The Vec still grows to fit every element.
         let iter = values.into_iter();
         let (_, opt_max_len) = iter.size_hint();
         let mut vec = Vec::with_capacity(capped_capacity::<T>(opt_max_len));
@@ -64,7 +63,7 @@ impl<T, const N: usize> TryFromIter<T> for SmallVec<[T; N]> {
     where
         I: IntoIterator<Item = T>,
     {
-        // Bound the reservation from the untrusted length hint, as in the `Vec` impl.
+        // Bound the pre-allocation like we do in the `Vec` impl.
         let iter = iter.into_iter();
         let (_, opt_max_len) = iter.size_hint();
         let mut out = SmallVec::with_capacity(capped_capacity::<T>(opt_max_len));
@@ -151,6 +150,7 @@ mod tests {
         };
         let vec: Vec<u64> = wonky.try_collect().unwrap();
         assert_eq!(vec, vec![1u64; 5]);
+        assert!(vec.capacity() <= MAX_BYTES_TO_PRE_ALLOCATE / std::mem::size_of::<u64>());
     }
 
     #[test]
@@ -161,6 +161,7 @@ mod tests {
         };
         let sv: SmallVec<[u64; 4]> = wonky.try_collect().unwrap();
         assert_eq!(sv.as_slice(), &[1u64; 5]);
+        assert!(sv.capacity() <= MAX_BYTES_TO_PRE_ALLOCATE / std::mem::size_of::<u64>());
     }
 
     #[test]
@@ -171,5 +172,6 @@ mod tests {
             .try_collect()
             .unwrap();
         assert_eq!(exact, vec![0, 1, 2]);
+        assert_eq!(exact.capacity(), 3);
     }
 }
